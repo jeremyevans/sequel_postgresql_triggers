@@ -30,7 +30,7 @@ error if you try to change it, it just ignores it.
 
 Similar to pgt_created_at, takes a table and column and makes it so
 that upon insertion, the column is set to CURRENT_TIMESTAMP. It
-differs that upon up, the column is also set to CURRENT_TIMESTAMP.
+differs that upon update, the column is also set to CURRENT_TIMESTAMP.
 
 === Counter Cache - pgt_counter_cache
 
