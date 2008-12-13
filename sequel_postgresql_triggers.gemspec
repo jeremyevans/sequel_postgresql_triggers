@@ -1,6 +1,6 @@
 spec = Gem::Specification.new do |s|
   s.name = "sequel_postgresql_triggers"
-  s.version = "1.0.0"
+  s.version = "1.0.1"
   s.author = "Jeremy Evans"
   s.email = "code@jeremyevans.net"
   s.platform = Gem::Platform::RUBY
@@ -10,4 +10,3 @@ spec = Gem::Specification.new do |s|
   s.has_rdoc = true
   s.rdoc_options = ['--inline-source', '--line-numbers', '--title', 'Sequel PostgreSQL Triggers: Database enforced timestamps, immutable columns, and counter/sum caches', 'README', 'LICENSE', 'lib']
 end
-
