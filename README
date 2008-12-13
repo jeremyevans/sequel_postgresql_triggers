@@ -3,7 +3,7 @@
 Sequel PostgreSQL Triggers is a small enhancement to Sequel allowing
 a user to easily handle the following types of columns:
 
-* Timestamp Columns (Created Ad/Updated At)
+* Timestamp Columns (Created At/Updated At)
 * Counter/Sum Caches
 * Immutable Columns
 
