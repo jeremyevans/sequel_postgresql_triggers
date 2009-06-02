@@ -66,7 +66,7 @@ module Sequel
       # * table : name of table
       # * columns : All columns in the table that should be immutable.  Can end with a hash of options, see module documentation.
       def pgt_immutable(table, *columns)
-        opts = columns.extract_options!
+        opts = columns.last.is_a?(Hash) ? columns.pop : {}
         trigger_name = opts[:trigger_name] || "pgt_im_#{columns.join('__')}"
         function_name = opts[:function_name] || "pgt_im_#{columns.join('__')}"
         ifs = columns.map do |c|
