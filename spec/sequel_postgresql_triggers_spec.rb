@@ -2,7 +2,7 @@
 require 'rubygems'
 require 'sequel'
 
-DB = Sequel.connect(ENV['PGT_SPEC_DB']||'postgres:///spgt_test?user=_postgresql')
+DB = Sequel.connect(ENV['PGT_SPEC_DB']||'postgres:///spgt_test?user=postgres')
 
 $:.unshift(File.join(File.dirname(File.dirname(File.expand_path(__FILE__))), 'lib'))
 require 'sequel_postgresql_triggers'
