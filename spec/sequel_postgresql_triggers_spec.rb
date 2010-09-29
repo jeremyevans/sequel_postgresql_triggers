@@ -7,9 +7,16 @@ DB = Sequel.connect(ENV['PGT_SPEC_DB']||'postgres:///spgt_test?user=postgres')
 $:.unshift(File.join(File.dirname(File.dirname(File.expand_path(__FILE__))), 'lib'))
 require 'sequel_postgresql_triggers'
 
+context "PostgreSQL Triggers" do
+before do
+  DB.create_language(:plpgsql) if DB.server_version < 90000
+end
+after do
+  DB.drop_language(:plpgsql, :cascade=>true) if DB.server_version < 90000
+end
+
 context "PostgreSQL Counter Cache Trigger" do
   before do
-    DB.create_language(:plpgsql)
     DB.create_table(:accounts){integer :id; integer :num_entries, :default=>0}
     DB.create_table(:entries){integer :id; integer :account_id}
     DB.pgt_counter_cache(:accounts, :id, :num_entries, :entries, :account_id)
@@ -19,7 +26,6 @@ context "PostgreSQL Counter Cache Trigger" do
 
   after do
     DB.drop_table(:entries, :accounts)
-    DB.drop_language(:plpgsql, :cascade=>true)
   end
 
   specify "Should modify counter cache when adding or removing records" do
@@ -45,14 +51,12 @@ end
 
 context "PostgreSQL Created At Trigger" do
   before do
-    DB.create_language(:plpgsql)
     DB.create_table(:accounts){integer :id; timestamp :added_on}
     DB.pgt_created_at(:accounts, :added_on)
   end
 
   after do
     DB.drop_table(:accounts)
-    DB.drop_language(:plpgsql, :cascade=>true)
   end
 
   specify "Should set the column upon insertion and ignore modifications afterward" do
@@ -71,7 +75,6 @@ end
 
 context "PostgreSQL Immutable Trigger" do
   before do
-    DB.create_language(:plpgsql)
     DB.create_table(:accounts){integer :id; integer :balance, :default=>0}
     DB.pgt_immutable(:accounts, :balance)
     DB[:accounts] << {:id=>1}
@@ -79,7 +82,6 @@ context "PostgreSQL Immutable Trigger" do
 
   after do
     DB.drop_table(:accounts)
-    DB.drop_language(:plpgsql, :cascade=>true)
   end
 
   specify "Should allow updating a record only if the immutable column does not change" do
@@ -92,7 +94,6 @@ end
 
 context "PostgreSQL Sum Cache Trigger" do
   before do
-    DB.create_language(:plpgsql)
     DB.create_table(:accounts){integer :id; integer :balance, :default=>0}
     DB.create_table(:entries){integer :id; integer :account_id; integer :amount}
     DB.pgt_sum_cache(:accounts, :id, :balance, :entries, :account_id, :amount)
@@ -102,7 +103,6 @@ context "PostgreSQL Sum Cache Trigger" do
 
   after do
     DB.drop_table(:entries, :accounts)
-    DB.drop_language(:plpgsql, :cascade=>true)
   end
 
   specify "Should modify sum cache when adding, updating, or removing records" do
@@ -131,14 +131,12 @@ end
 
 context "PostgreSQL Updated At Trigger" do
   before do
-    DB.create_language(:plpgsql)
     DB.create_table(:accounts){integer :id; timestamp :changed_on}
     DB.pgt_updated_at(:accounts, :changed_on)
   end
 
   after do
     DB.drop_table(:accounts)
-    DB.drop_language(:plpgsql, :cascade=>true)
   end
 
   specify "Should set the column always to the current timestamp" do
@@ -151,4 +149,5 @@ context "PostgreSQL Updated At Trigger" do
     DB[:accounts].filter(:id=>1).update(:id=>3)
     DB[:accounts].select((Sequel::SQL::NumericExpression.new(:NOOP, ds.filter(:id=>3)) > ds.filter(:id=>2)).as(:x)).first[:x].should == true
   end
+end
 end
