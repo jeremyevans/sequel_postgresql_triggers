@@ -2,8 +2,9 @@ module Sequel
   module Postgres
     # Add the pgt_* methods so that any Sequel database connecting to PostgreSQL
     # can use them.  All of these methods require the plpgsql procedural language
-    # added to the PostgreSQL database before they can be used.  You can do so
-    # with:
+    # be added to the PostgreSQL database before they can be used. On PostgreSQL
+    # 9.0 and later versions, it is installed by default.  For older versions,
+    # you can install it with:
     #
     #   DB.create_language(:plpgsql)
     #
