@@ -74,7 +74,7 @@ module Sequel
           old = "OLD.#{quote_identifier(c)}"
           new = "NEW.#{quote_identifier(c)}"
           <<-END
-            IF #{new} != #{old} THEN
+            IF #{new} IS DISTINCT FROM #{old} THEN
                 RAISE EXCEPTION 'Attempted event_id update: Old: %, New: %', #{old}, #{new};
             END IF;
           END
