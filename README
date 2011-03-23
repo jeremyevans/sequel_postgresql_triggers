@@ -11,8 +11,8 @@ It handles these internally to the database via triggers, so even if
 other applications access the database (without using Sequel), things
 will still work (unless the database superuser disables triggers).
 
-To use any of these methods, you have to add the plpgsql procedural
-language to PostgreSQL, which you can do with:
+To use any of these methods before PostgreSQL 9.0, you have to add
+the plpgsql procedural language to PostgreSQL, which you can do with:
 
   DB.create_language(:plpgsql)
 
@@ -53,7 +53,8 @@ the value of any of the columns.
 
 == License
 
-This library is released under the MIT License.  See the LICENSE file for details.
+This library is released under the MIT License.  See the MIT-LICENSE
+file for details.
 
 == Author
 
