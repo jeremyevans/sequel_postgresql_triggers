@@ -84,11 +84,25 @@ context "PostgreSQL Immutable Trigger" do
     DB.drop_table(:accounts)
   end
 
-  specify "Should allow updating a record only if the immutable column does not change" do
-    DB[:accounts].update(:id=>1)
-    DB[:accounts].update(:balance=>0)
-    DB[:accounts].update(:balance=>:balance * :balance)
+  specify "Should allow modifying columns not marked as immutable" do
+    proc{DB[:accounts].update(:id=>2)}.should_not raise_error
+  end
+
+  specify "Should allow updating a column to its existing value" do
+    proc{DB[:accounts].update(:balance=>0)}.should_not raise_error
+    proc{DB[:accounts].update(:balance=>:balance * :balance)}.should_not raise_error
+  end
+
+  specify "Should not allow modifying a column's value" do
     proc{DB[:accounts].update(:balance=>1)}.should raise_error(Sequel::DatabaseError)
+  end
+
+  specify "Should handle NULL values correctly" do
+    proc{DB[:accounts].update(:balance=>nil)}.should raise_error(Sequel::DatabaseError)
+    DB[:accounts].delete
+    DB[:accounts] << {:id=>1, :balance=>nil}
+    proc{DB[:accounts].update(:balance=>nil)}.should_not raise_error
+    proc{DB[:accounts].update(:balance=>0)}.should raise_error(Sequel::DatabaseError)
   end
 end
 
