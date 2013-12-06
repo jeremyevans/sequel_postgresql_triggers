@@ -51,6 +51,12 @@ This takes a table name and one or more column names, and adds
 an update trigger that raises an exception if you try to modify
 the value of any of the columns.
 
+=== Touch Propagation - pgt_touch
+
+This takes several arguments (again, see the RDoc) and sets up a
+trigger that watches one table for changes, and touches timestamps
+of related rows in a separate table.
+
 == License
 
 This library is released under the MIT License.  See the MIT-LICENSE
