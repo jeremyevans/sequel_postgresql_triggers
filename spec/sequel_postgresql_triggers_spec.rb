@@ -90,7 +90,7 @@ context "PostgreSQL Immutable Trigger" do
 
   specify "Should allow updating a column to its existing value" do
     proc{DB[:accounts].update(:balance=>0)}.should_not raise_error
-    proc{DB[:accounts].update(:balance=>:balance * :balance)}.should_not raise_error
+    proc{DB[:accounts].update(:balance=>Sequel.*(:balance, :balance))}.should_not raise_error
   end
 
   specify "Should not allow modifying a column's value" do
@@ -131,7 +131,7 @@ context "PostgreSQL Sum Cache Trigger" do
     DB[:entries] << {:id=>3, :account_id=>2, :amount=>500}
     DB[:accounts].filter(:id=>1).get(:balance).should == 300
     DB[:accounts].filter(:id=>2).get(:balance).should == 500
-    DB[:entries].exclude(:id=>2).update(:amount=>:amount * 2)
+    DB[:entries].exclude(:id=>2).update(:amount=>Sequel.*(:amount, 2))
     DB[:accounts].filter(:id=>1).get(:balance).should == 400
     DB[:accounts].filter(:id=>2).get(:balance).should == 1000
     DB[:entries].filter(:id=>2).delete
