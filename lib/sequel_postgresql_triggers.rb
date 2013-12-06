@@ -110,6 +110,33 @@ module Sequel
         END;
         SQL
       end
+
+      # When rows in a table are updated, touches a timestamp of related rows
+      # in another table.
+      # Arguments:
+      # * main_table : name of table that is being watched for changes
+      # * touch_table : name of table that needs to be touched
+      # * column : name of timestamp column to be touched
+      # * expr : hash or array that represents the columns that define the relationship
+      # * opts : option hash, see module documentation
+      def pgt_touch(main_table, touch_table, column, expr, opts={})
+        trigger_name = opts[:trigger_name] || "pgt_t_#{main_table}__#{touch_table}"
+        function_name = opts[:function_name] || "pgt_t_#{main_table}__#{touch_table}"
+        cond = proc{|source| expr.map{|k,v| "#{quote_identifier(k)} = #{source}.#{quote_identifier(v)}"}.join(" AND ")}
+        sql = <<-SQL
+          BEGIN
+            IF (TG_OP = 'INSERT') THEN
+              UPDATE #{quote_schema_table(touch_table)} SET #{quote_identifier(column)} = CURRENT_TIMESTAMP WHERE #{cond['NEW']} AND #{quote_identifier(column)} <> CURRENT_TIMESTAMP;
+            ELSIF (TG_OP = 'UPDATE') THEN
+              UPDATE #{quote_schema_table(touch_table)} SET #{quote_identifier(column)} = CURRENT_TIMESTAMP WHERE #{cond['NEW']} AND #{quote_identifier(column)} <> CURRENT_TIMESTAMP;
+            ELSIF (TG_OP = 'DELETE') THEN
+              UPDATE #{quote_schema_table(touch_table)} SET #{quote_identifier(column)} = CURRENT_TIMESTAMP WHERE #{cond['OLD']} AND #{quote_identifier(column)} <> CURRENT_TIMESTAMP;
+            END IF;
+            RETURN NULL;
+          END;
+        SQL
+        pgt_trigger(main_table, trigger_name, function_name, [:insert, :delete, :update], sql, :after=>true)
+      end
       
       # Turns a column in the table into a updated at timestamp column, which
       # always contains the timestamp the record was inserted or last updated.
@@ -132,9 +159,9 @@ module Sequel
       
       # Add or replace a function that returns trigger to handle the action,
       # and add a trigger that calls the function.
-      def pgt_trigger(table, trigger_name, function_name, events, definition)
+      def pgt_trigger(table, trigger_name, function_name, events, definition, opts={})
         create_function(function_name, definition, :language=>:plpgsql, :returns=>:trigger, :replace=>true)
-        create_trigger(table, trigger_name, function_name, :events=>events, :each_row=>true)
+        create_trigger(table, trigger_name, function_name, :events=>events, :each_row=>true, :after=>opts[:after])
       end
     end
   end

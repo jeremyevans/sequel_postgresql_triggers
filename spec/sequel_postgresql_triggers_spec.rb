@@ -7,7 +7,7 @@ DB = Sequel.connect(ENV['PGT_SPEC_DB']||'postgres:///spgt_test?user=postgres')
 $:.unshift(File.join(File.dirname(File.dirname(File.expand_path(__FILE__))), 'lib'))
 require 'sequel_postgresql_triggers'
 
-context "PostgreSQL Triggers" do
+describe "PostgreSQL Triggers" do
 before do
   DB.create_language(:plpgsql) if DB.server_version < 90000
 end
@@ -90,7 +90,7 @@ context "PostgreSQL Immutable Trigger" do
 
   specify "Should allow updating a column to its existing value" do
     proc{DB[:accounts].update(:balance=>0)}.should_not raise_error
-    proc{DB[:accounts].update(:balance=>:balance * :balance)}.should_not raise_error
+    proc{DB[:accounts].update(:balance=>Sequel.*(:balance, :balance))}.should_not raise_error
   end
 
   specify "Should not allow modifying a column's value" do
@@ -131,7 +131,7 @@ context "PostgreSQL Sum Cache Trigger" do
     DB[:entries] << {:id=>3, :account_id=>2, :amount=>500}
     DB[:accounts].filter(:id=>1).get(:balance).should == 300
     DB[:accounts].filter(:id=>2).get(:balance).should == 500
-    DB[:entries].exclude(:id=>2).update(:amount=>:amount * 2)
+    DB[:entries].exclude(:id=>2).update(:amount=>Sequel.*(:amount, 2))
     DB[:accounts].filter(:id=>1).get(:balance).should == 400
     DB[:accounts].filter(:id=>2).get(:balance).should == 1000
     DB[:entries].filter(:id=>2).delete
@@ -162,6 +162,64 @@ context "PostgreSQL Updated At Trigger" do
     DB[:accounts].select((Sequel::SQL::NumericExpression.new(:NOOP, ds.filter(:id=>2)) > ds.filter(:id=>1)).as(:x)).first[:x].should == true
     DB[:accounts].filter(:id=>1).update(:id=>3)
     DB[:accounts].select((Sequel::SQL::NumericExpression.new(:NOOP, ds.filter(:id=>3)) > ds.filter(:id=>2)).as(:x)).first[:x].should == true
+  end
+end
+
+context "PostgreSQL Touch Trigger" do
+  before do
+    DB.create_table(:parents){integer :id1; integer :id2; integer :child_id; timestamp :changed_on}
+    DB.create_table(:children){integer :id; integer :parent_id1; integer :parent_id2; timestamp :changed_on}
+  end
+
+  after do
+    DB.drop_table(:parents)
+    DB.drop_table(:children)
+  end
+
+  specify "Should update the timestamp column of the related table when adding, updating or removing records" do
+    DB.pgt_touch(:children, :parents, :changed_on, :id1=>:parent_id1)
+    DB[:parents] << {:id1=>1, :changed_on=>Date.today - 30}
+    DB[:children] << {:id=>1, :parent_id1=>1}
+    DB[:parents].get(:changed_on).strftime('%F').should == Date.today.strftime('%F')
+    DB[:parents].update(:changed_on=>Date.today - 30)
+    DB[:children].update(:id=>2)
+    DB[:parents].get(:changed_on).strftime('%F').should == Date.today.strftime('%F')
+    DB[:parents].update(:changed_on=>Date.today - 30)
+    DB[:children].delete
+    DB[:parents].get(:changed_on).strftime('%F').should == Date.today.strftime('%F')
+  end
+
+  specify "Should update the timestamp column of the related table when there is a composite foreign key" do
+    DB.pgt_touch(:children, :parents, :changed_on, :id1=>:parent_id1, :id2=>:parent_id2)
+    DB[:parents] << {:id1=>1, :id2=>2, :changed_on=>Date.today - 30}
+    DB[:children] << {:id=>1, :parent_id1=>1, :parent_id2=>2}
+    DB[:parents].get(:changed_on).strftime('%F').should == Date.today.strftime('%F')
+    DB[:parents].update(:changed_on=>Date.today - 30)
+    DB[:children].update(:id=>2)
+    DB[:parents].get(:changed_on).strftime('%F').should == Date.today.strftime('%F')
+    DB[:parents].update(:changed_on=>Date.today - 30)
+    DB[:children].delete
+    DB[:parents].get(:changed_on).strftime('%F').should == Date.today.strftime('%F')
+  end
+
+  specify "Should update timestamps correctly when two tables touch each other" do
+    DB.pgt_touch(:children, :parents, :changed_on, :id1=>:parent_id1)
+    DB.pgt_touch(:parents, :children, :changed_on, :id=>:child_id)
+    DB[:parents] << {:id1=>1, :child_id=>1, :changed_on=>Date.today - 30}
+    DB[:children] << {:id=>1, :parent_id1=>1, :changed_on=>Date.today - 30}
+    DB[:parents].get(:changed_on).strftime('%F').should == Date.today.strftime('%F')
+    DB[:children].get(:changed_on).strftime('%F').should == Date.today.strftime('%F')
+    time = DB[:parents].get(:changed_on)
+    DB[:parents].update(:id2=>4)
+    DB[:parents].get(:changed_on).should > time
+    DB[:children].get(:changed_on).should > time
+    time = DB[:parents].get(:changed_on)
+    DB[:children].update(:id=>1)
+    DB[:parents].get(:changed_on).should > time
+    DB[:children].get(:changed_on).should > time
+    time = DB[:parents].get(:changed_on)
+    DB[:children].delete
+    DB[:parents].get(:changed_on).should > time
   end
 end
 end

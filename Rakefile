@@ -1,6 +1,6 @@
 require "rake"
 require "rake/clean"
-require "spec/rake/spectask"
+require "rspec/core/rake_task"
 
 CLEAN.include ["*.gem", "rdoc"]
 RDOC_OPTS = ["--quiet", "--line-numbers", "--inline-source", '--title', \
@@ -22,8 +22,8 @@ rdoc_task_class.new do |rdoc|
 end
 
 desc "Run specs"
-Spec::Rake::SpecTask.new("spec") do |t|
-  t.spec_files = ["spec/sequel_postgresql_triggers_spec.rb"]
+RSpec::Core::RakeTask.new("spec") do |t|
+  t.pattern = "./spec/*_spec.rb"
 end
 task :default=>[:spec]
 
