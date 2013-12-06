@@ -7,7 +7,7 @@ DB = Sequel.connect(ENV['PGT_SPEC_DB']||'postgres:///spgt_test?user=postgres')
 $:.unshift(File.join(File.dirname(File.dirname(File.expand_path(__FILE__))), 'lib'))
 require 'sequel_postgresql_triggers'
 
-context "PostgreSQL Triggers" do
+describe "PostgreSQL Triggers" do
 before do
   DB.create_language(:plpgsql) if DB.server_version < 90000
 end
