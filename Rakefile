@@ -1,6 +1,5 @@
 require "rake"
 require "rake/clean"
-require "rspec/core/rake_task"
 
 CLEAN.include ["*.gem", "rdoc"]
 RDOC_OPTS = ["--quiet", "--line-numbers", "--inline-source", '--title', \
@@ -21,11 +20,29 @@ rdoc_task_class.new do |rdoc|
   rdoc.rdoc_files.add %w"README LICENSE lib/sequel_postgresql_triggers.rb"
 end
 
-desc "Run specs"
-RSpec::Core::RakeTask.new("spec") do |t|
-  t.pattern = "./spec/*_spec.rb"
+begin
+  begin
+    # RSpec 2
+    require "rspec/core/rake_task"
+    spec_class = RSpec::Core::RakeTask
+    spec_files_meth = :pattern=
+  rescue LoadError
+    # RSpec 1
+    require "spec/rake/spectask"
+    spec_class = Spec::Rake::SpecTask
+    spec_files_meth = :spec_files=
+  end
+
+  desc "Run specs"
+  spec_class.new("spec") do |t|
+    t.send(spec_files_meth, ["./spec/*_spec.rb"])
+  end
+  task :default=>[:spec]
+rescue LoadError
+  task :default do
+    puts "Must install rspec to run the default task (which runs specs)"
+  end
 end
-task :default=>[:spec]
 
 desc "Package sequel_postgresql_triggers"
 task :package do
