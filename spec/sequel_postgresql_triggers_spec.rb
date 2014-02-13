@@ -220,5 +220,14 @@ describe "PostgreSQL Triggers" do
       DB[:children].delete
       DB[:parents].get(:changed_on).should > time
     end
+
+    specify "Should update the timestamp on the related table if that timestamp is initially NULL" do
+      DB.pgt_touch(:children, :parents, :changed_on, :id1=>:parent_id1)
+      DB[:parents] << {:id1=>1, :changed_on=>nil}
+      DB[:children] << {:id=>1, :parent_id1=>1}
+      changed_on = DB[:parents].get(:changed_on)
+      changed_on.should_not == nil
+      changed_on.strftime('%F').should == Date.today.strftime('%F')
+    end
   end
 end

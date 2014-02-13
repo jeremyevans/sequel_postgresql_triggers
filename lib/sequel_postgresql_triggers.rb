@@ -126,11 +126,11 @@ module Sequel
         sql = <<-SQL
           BEGIN
             IF (TG_OP = 'INSERT') THEN
-              UPDATE #{quote_schema_table(touch_table)} SET #{quote_identifier(column)} = CURRENT_TIMESTAMP WHERE #{cond['NEW']} AND #{quote_identifier(column)} <> CURRENT_TIMESTAMP;
+              UPDATE #{quote_schema_table(touch_table)} SET #{quote_identifier(column)} = CURRENT_TIMESTAMP WHERE #{cond['NEW']} AND ((#{quote_identifier(column)} <> CURRENT_TIMESTAMP) OR (#{quote_identifier(column)} IS NULL));
             ELSIF (TG_OP = 'UPDATE') THEN
-              UPDATE #{quote_schema_table(touch_table)} SET #{quote_identifier(column)} = CURRENT_TIMESTAMP WHERE #{cond['NEW']} AND #{quote_identifier(column)} <> CURRENT_TIMESTAMP;
+              UPDATE #{quote_schema_table(touch_table)} SET #{quote_identifier(column)} = CURRENT_TIMESTAMP WHERE #{cond['NEW']} AND ((#{quote_identifier(column)} <> CURRENT_TIMESTAMP) OR (#{quote_identifier(column)} IS NULL));
             ELSIF (TG_OP = 'DELETE') THEN
-              UPDATE #{quote_schema_table(touch_table)} SET #{quote_identifier(column)} = CURRENT_TIMESTAMP WHERE #{cond['OLD']} AND #{quote_identifier(column)} <> CURRENT_TIMESTAMP;
+              UPDATE #{quote_schema_table(touch_table)} SET #{quote_identifier(column)} = CURRENT_TIMESTAMP WHERE #{cond['OLD']} AND ((#{quote_identifier(column)} <> CURRENT_TIMESTAMP) OR (#{quote_identifier(column)} IS NULL));
             END IF;
             RETURN NULL;
           END;
