@@ -29,26 +29,31 @@ describe "PostgreSQL Triggers" do
     end
 
     specify "Should modify counter cache when adding or removing records" do
-      DB[:accounts].filter(:id=>1).get(:num_entries).should == 0
-      DB[:accounts].filter(:id=>2).get(:num_entries).should == 0
+      DB[:accounts].order(:id).select_map(:num_entries).should == [0, 0]
+
       DB[:entries] << {:id=>1, :account_id=>1}
-      DB[:accounts].filter(:id=>1).get(:num_entries).should == 1
-      DB[:accounts].filter(:id=>2).get(:num_entries).should == 0
+      DB[:accounts].order(:id).select_map(:num_entries).should == [1, 0]
+
       DB[:entries] << {:id=>2, :account_id=>1}
-      DB[:accounts].filter(:id=>1).get(:num_entries).should == 2
-      DB[:accounts].filter(:id=>2).get(:num_entries).should == 0
+      DB[:accounts].order(:id).select_map(:num_entries).should == [2, 0]
+      
       DB[:entries] << {:id=>3, :account_id=>2}
-      DB[:accounts].filter(:id=>1).get(:num_entries).should == 2
-      DB[:accounts].filter(:id=>2).get(:num_entries).should == 1
+      DB[:accounts].order(:id).select_map(:num_entries).should == [2, 1]
+      
       DB[:entries].where(:id=>2).update(:account_id=>2)
-      DB[:accounts].filter(:id=>1).get(:num_entries).should == 1
-      DB[:accounts].filter(:id=>2).get(:num_entries).should == 2
+      DB[:accounts].order(:id).select_map(:num_entries).should == [1, 2]
+      
+      DB[:entries].where(:id=>2).update(:account_id=>nil)
+      DB[:accounts].order(:id).select_map(:num_entries).should == [1, 1]
+      
+      DB[:entries].where(:id=>2).update(:account_id=>2)
+      DB[:accounts].order(:id).select_map(:num_entries).should == [1, 2]
+      
       DB[:entries].filter(:id=>2).delete
-      DB[:accounts].filter(:id=>1).get(:num_entries).should == 1
-      DB[:accounts].filter(:id=>2).get(:num_entries).should == 1
+      DB[:accounts].order(:id).select_map(:num_entries).should == [1, 1]
+      
       DB[:entries].delete
-      DB[:accounts].filter(:id=>1).get(:num_entries).should == 0
-      DB[:accounts].filter(:id=>2).get(:num_entries).should == 0
+      DB[:accounts].order(:id).select_map(:num_entries).should == [0, 0]
     end
   end
 
@@ -123,29 +128,34 @@ describe "PostgreSQL Triggers" do
     end
 
     specify "Should modify sum cache when adding, updating, or removing records" do
-      DB[:accounts].filter(:id=>1).get(:balance).should == 0
-      DB[:accounts].filter(:id=>2).get(:balance).should == 0
+      DB[:accounts].order(:id).select_map(:balance).should == [0, 0]
+
       DB[:entries] << {:id=>1, :account_id=>1, :amount=>100}
-      DB[:accounts].filter(:id=>1).get(:balance).should == 100
-      DB[:accounts].filter(:id=>2).get(:balance).should == 0
+      DB[:accounts].order(:id).select_map(:balance).should == [100, 0]
+
       DB[:entries] << {:id=>2, :account_id=>1, :amount=>200}
-      DB[:accounts].filter(:id=>1).get(:balance).should == 300
-      DB[:accounts].filter(:id=>2).get(:balance).should == 0
+      DB[:accounts].order(:id).select_map(:balance).should == [300, 0]
+      
       DB[:entries] << {:id=>3, :account_id=>2, :amount=>500}
-      DB[:accounts].filter(:id=>1).get(:balance).should == 300
-      DB[:accounts].filter(:id=>2).get(:balance).should == 500
+      DB[:accounts].order(:id).select_map(:balance).should == [300, 500]
+      
       DB[:entries].exclude(:id=>2).update(:amount=>Sequel.*(:amount, 2))
-      DB[:accounts].filter(:id=>1).get(:balance).should == 400
-      DB[:accounts].filter(:id=>2).get(:balance).should == 1000
+      DB[:accounts].order(:id).select_map(:balance).should == [400, 1000]
+      
       DB[:entries].where(:id=>2).update(:account_id=>2)
-      DB[:accounts].filter(:id=>1).get(:balance).should == 200
-      DB[:accounts].filter(:id=>2).get(:balance).should == 1200
+      DB[:accounts].order(:id).select_map(:balance).should == [200, 1200]
+      
+      DB[:entries].where(:id=>2).update(:account_id=>nil)
+      DB[:accounts].order(:id).select_map(:balance).should == [200, 1000]
+      
+      DB[:entries].where(:id=>2).update(:account_id=>2)
+      DB[:accounts].order(:id).select_map(:balance).should == [200, 1200]
+      
       DB[:entries].filter(:id=>2).delete
-      DB[:accounts].filter(:id=>1).get(:balance).should == 200
-      DB[:accounts].filter(:id=>2).get(:balance).should == 1000
+      DB[:accounts].order(:id).select_map(:balance).should == [200, 1000]
+      
       DB[:entries].delete
-      DB[:accounts].filter(:id=>1).get(:balance).should == 0
-      DB[:accounts].filter(:id=>2).get(:balance).should == 0
+      DB[:accounts].order(:id).select_map(:balance).should == [0, 0]
     end
   end
 
@@ -197,6 +207,14 @@ describe "PostgreSQL Triggers" do
       DB[:parents].update(:changed_on=>d30)
       DB[:children].update(:parent_id1=>2)
       DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.should == [d.strftime('%F'), d.strftime('%F')]
+
+      DB[:parents].update(:changed_on=>d30)
+      DB[:children].update(:parent_id1=>nil)
+      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.should == [d30.strftime('%F'), d.strftime('%F')]
+
+      DB[:parents].update(:changed_on=>d30)
+      DB[:children].update(:parent_id1=>2)
+      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.should == [d30.strftime('%F'), d.strftime('%F')]
 
       DB[:parents].update(:changed_on=>d30)
       DB[:children].delete

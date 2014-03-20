@@ -35,10 +35,10 @@ module Sequel
 
         pgt_trigger(counted_table, trigger_name, function_name, [:insert, :update, :delete], <<-SQL)
         BEGIN
-          IF (TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND NEW.#{id_column} <> OLD.#{id_column})) THEN
+          IF (TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND (NEW.#{id_column} <> OLD.#{id_column}) OR OLD.#{id_column} IS NULL)) THEN
             UPDATE #{table} SET #{count_column} = #{count_column} + 1 WHERE #{main_column} = NEW.#{id_column};
           END IF;
-          IF (TG_OP = 'DELETE' OR (TG_OP = 'UPDATE' AND NEW.#{id_column} <> OLD.#{id_column})) THEN
+          IF (TG_OP = 'DELETE' OR (TG_OP = 'UPDATE' AND (NEW.#{id_column} <> OLD.#{id_column}) OR NEW.#{id_column} IS NULL)) THEN
             UPDATE #{table} SET #{count_column} = #{count_column} - 1 WHERE #{main_column} = OLD.#{id_column};
           END IF;
 
