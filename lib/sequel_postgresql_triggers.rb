@@ -27,15 +27,25 @@ module Sequel
       def pgt_counter_cache(main_table, main_table_id_column, counter_column, counted_table, counted_table_id_column, opts={})
         trigger_name = opts[:trigger_name] || "pgt_cc_#{main_table}__#{main_table_id_column}__#{counter_column}__#{counted_table_id_column}"
         function_name = opts[:function_name] || "pgt_cc_#{main_table}__#{main_table_id_column}__#{counter_column}__#{counted_table}__#{counted_table_id_column}"
-        pgt_trigger(counted_table, trigger_name, function_name, [:insert, :delete], <<-SQL)
+
+        table = quote_schema_table(main_table)
+        id_column = quote_identifier(counted_table_id_column)
+        main_column = quote_identifier(main_table_id_column)
+        count_column = quote_identifier(counter_column)
+
+        pgt_trigger(counted_table, trigger_name, function_name, [:insert, :update, :delete], <<-SQL)
         BEGIN
-          IF (TG_OP = 'DELETE') THEN
-            UPDATE #{quote_schema_table(main_table)} SET #{quote_identifier(counter_column)} = #{quote_identifier(counter_column)} - 1 WHERE #{quote_identifier(main_table_id_column)} = OLD.#{counted_table_id_column};
-            RETURN OLD;
-          ELSIF (TG_OP = 'INSERT') THEN
-            UPDATE #{quote_schema_table(main_table)} SET #{quote_identifier(counter_column)} = #{quote_identifier(counter_column)} + 1 WHERE #{quote_identifier(main_table_id_column)} = NEW.#{quote_identifier(counted_table_id_column)};
-            RETURN NEW;
+          IF (TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND NEW.#{id_column} <> OLD.#{id_column})) THEN
+            UPDATE #{table} SET #{count_column} = #{count_column} + 1 WHERE #{main_column} = NEW.#{id_column};
           END IF;
+          IF (TG_OP = 'DELETE' OR (TG_OP = 'UPDATE' AND NEW.#{id_column} <> OLD.#{id_column})) THEN
+            UPDATE #{table} SET #{count_column} = #{count_column} - 1 WHERE #{main_column} = OLD.#{id_column};
+          END IF;
+
+          IF (TG_OP = 'DELETE') THEN
+            RETURN OLD;
+          END IF;
+          RETURN NEW;
         END;
         SQL
       end
@@ -49,12 +59,13 @@ module Sequel
       def pgt_created_at(table, column, opts={})
         trigger_name = opts[:trigger_name] || "pgt_ca_#{column}"
         function_name = opts[:function_name] || "pgt_ca_#{table}__#{column}"
+        col = quote_identifier(column)
         pgt_trigger(table, trigger_name, function_name, [:insert, :update], <<-SQL)
         BEGIN
           IF (TG_OP = 'UPDATE') THEN
-            NEW.#{quote_identifier(column)} := OLD.#{quote_identifier(column)};
+            NEW.#{col} := OLD.#{col};
           ELSIF (TG_OP = 'INSERT') THEN
-            NEW.#{quote_identifier(column)} := CURRENT_TIMESTAMP;
+            NEW.#{col} := CURRENT_TIMESTAMP;
           END IF;
           RETURN NEW;
         END;
@@ -95,18 +106,29 @@ module Sequel
       def pgt_sum_cache(main_table, main_table_id_column, sum_column, summed_table, summed_table_id_column, summed_column, opts={})
         trigger_name = opts[:trigger_name] || "pgt_sc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}"
         function_name = opts[:function_name] || "pgt_sc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table}__#{summed_table_id_column}__#{summed_column}"
+
+        table = quote_schema_table(main_table)
+        id_column = quote_identifier(summed_table_id_column)
+        summed_column = quote_identifier(summed_column)
+        main_column = quote_identifier(main_table_id_column)
+        sum_column = quote_identifier(sum_column)
+
         pgt_trigger(summed_table, trigger_name, function_name, [:insert, :delete, :update], <<-SQL)
         BEGIN
-          IF (TG_OP = 'DELETE') THEN
-            UPDATE #{quote_schema_table(main_table)} SET #{quote_identifier(sum_column)} = #{quote_identifier(sum_column)} - OLD.#{quote_identifier(summed_column)} WHERE #{quote_identifier(main_table_id_column)} = OLD.#{summed_table_id_column};
-            RETURN OLD;
-          ELSIF (TG_OP = 'UPDATE') THEN
-            UPDATE #{quote_schema_table(main_table)} SET #{quote_identifier(sum_column)} = #{quote_identifier(sum_column)} + NEW.#{quote_identifier(summed_column)} - OLD.#{quote_identifier(summed_column)} WHERE #{quote_identifier(main_table_id_column)} = NEW.#{quote_identifier(summed_table_id_column)};
-            RETURN NEW;
-          ELSIF (TG_OP = 'INSERT') THEN
-            UPDATE #{quote_schema_table(main_table)} SET #{quote_identifier(sum_column)} = #{quote_identifier(sum_column)} + NEW.#{quote_identifier(summed_column)} WHERE #{quote_identifier(main_table_id_column)} = NEW.#{quote_identifier(summed_table_id_column)};
-            RETURN NEW;
+          IF (TG_OP = 'UPDATE' AND NEW.#{id_column} = OLD.#{id_column}) THEN
+            UPDATE #{table} SET #{sum_column} = #{sum_column} + NEW.#{summed_column} - OLD.#{summed_column} WHERE #{main_column} = NEW.#{id_column};
+          ELSE
+            IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
+              UPDATE #{table} SET #{sum_column} = #{sum_column} + NEW.#{summed_column} WHERE #{main_column} = NEW.#{id_column};
+            END IF;
+            IF (TG_OP = 'DELETE' OR TG_OP = 'UPDATE') THEN
+              UPDATE #{table} SET #{sum_column} = #{sum_column} - OLD.#{summed_column} WHERE #{main_column} = OLD.#{id_column};
+            END IF;
           END IF;
+          IF (TG_OP = 'DELETE') THEN
+            RETURN OLD;
+          END IF;
+          RETURN NEW;
         END;
         SQL
       end
@@ -122,17 +144,30 @@ module Sequel
       def pgt_touch(main_table, touch_table, column, expr, opts={})
         trigger_name = opts[:trigger_name] || "pgt_t_#{main_table}__#{touch_table}"
         function_name = opts[:function_name] || "pgt_t_#{main_table}__#{touch_table}"
-        cond = proc{|source| expr.map{|k,v| "#{quote_identifier(k)} = #{source}.#{quote_identifier(v)}"}.join(" AND ")}
+        cond = lambda{|source| expr.map{|k,v| "#{quote_identifier(k)} = #{source}.#{quote_identifier(v)}"}.join(" AND ")}
+        same_id = expr.map{|k,v| "NEW.#{quote_identifier(v)} = OLD.#{quote_identifier(v)}"}.join(" AND ")
+
+        table = quote_schema_table(touch_table)
+        col = quote_identifier(column)
+        update = lambda{|source| " UPDATE #{table} SET #{col} = CURRENT_TIMESTAMP WHERE #{cond[source]} AND ((#{col} <> CURRENT_TIMESTAMP) OR (#{col} IS NULL));"}
+
         sql = <<-SQL
           BEGIN
-            IF (TG_OP = 'INSERT') THEN
-              UPDATE #{quote_schema_table(touch_table)} SET #{quote_identifier(column)} = CURRENT_TIMESTAMP WHERE #{cond['NEW']} AND ((#{quote_identifier(column)} <> CURRENT_TIMESTAMP) OR (#{quote_identifier(column)} IS NULL));
-            ELSIF (TG_OP = 'UPDATE') THEN
-              UPDATE #{quote_schema_table(touch_table)} SET #{quote_identifier(column)} = CURRENT_TIMESTAMP WHERE #{cond['NEW']} AND ((#{quote_identifier(column)} <> CURRENT_TIMESTAMP) OR (#{quote_identifier(column)} IS NULL));
-            ELSIF (TG_OP = 'DELETE') THEN
-              UPDATE #{quote_schema_table(touch_table)} SET #{quote_identifier(column)} = CURRENT_TIMESTAMP WHERE #{cond['OLD']} AND ((#{quote_identifier(column)} <> CURRENT_TIMESTAMP) OR (#{quote_identifier(column)} IS NULL));
+            IF (TG_OP = 'UPDATE' AND (#{same_id})) THEN
+              #{update['NEW']}
+            ELSE
+              IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
+                #{update['NEW']}
+              END IF;
+              IF (TG_OP = 'DELETE' OR TG_OP = 'UPDATE') THEN
+                #{update['OLD']}
+              END IF;
             END IF;
-            RETURN NULL;
+
+            IF (TG_OP = 'DELETE') THEN
+              RETURN OLD;
+            END IF;
+            RETURN NEW;
           END;
         SQL
         pgt_trigger(main_table, trigger_name, function_name, [:insert, :delete, :update], sql, :after=>true)

@@ -40,6 +40,9 @@ describe "PostgreSQL Triggers" do
       DB[:entries] << {:id=>3, :account_id=>2}
       DB[:accounts].filter(:id=>1).get(:num_entries).should == 2
       DB[:accounts].filter(:id=>2).get(:num_entries).should == 1
+      DB[:entries].where(:id=>2).update(:account_id=>2)
+      DB[:accounts].filter(:id=>1).get(:num_entries).should == 1
+      DB[:accounts].filter(:id=>2).get(:num_entries).should == 2
       DB[:entries].filter(:id=>2).delete
       DB[:accounts].filter(:id=>1).get(:num_entries).should == 1
       DB[:accounts].filter(:id=>2).get(:num_entries).should == 1
@@ -134,6 +137,9 @@ describe "PostgreSQL Triggers" do
       DB[:entries].exclude(:id=>2).update(:amount=>Sequel.*(:amount, 2))
       DB[:accounts].filter(:id=>1).get(:balance).should == 400
       DB[:accounts].filter(:id=>2).get(:balance).should == 1000
+      DB[:entries].where(:id=>2).update(:account_id=>2)
+      DB[:accounts].filter(:id=>1).get(:balance).should == 200
+      DB[:accounts].filter(:id=>2).get(:balance).should == 1200
       DB[:entries].filter(:id=>2).delete
       DB[:accounts].filter(:id=>1).get(:balance).should == 200
       DB[:accounts].filter(:id=>2).get(:balance).should == 1000
@@ -177,15 +183,24 @@ describe "PostgreSQL Triggers" do
 
     specify "Should update the timestamp column of the related table when adding, updating or removing records" do
       DB.pgt_touch(:children, :parents, :changed_on, :id1=>:parent_id1)
-      DB[:parents] << {:id1=>1, :changed_on=>Date.today - 30}
+      d = Date.today
+      d30 = Date.today - 30
+      DB[:parents] << {:id1=>1, :changed_on=>d30}
+      DB[:parents] << {:id1=>2, :changed_on=>d30}
       DB[:children] << {:id=>1, :parent_id1=>1}
-      DB[:parents].get(:changed_on).strftime('%F').should == Date.today.strftime('%F')
-      DB[:parents].update(:changed_on=>Date.today - 30)
+      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.should == [d.strftime('%F'), d30.strftime('%F')]
+
+      DB[:parents].update(:changed_on=>d30)
       DB[:children].update(:id=>2)
-      DB[:parents].get(:changed_on).strftime('%F').should == Date.today.strftime('%F')
-      DB[:parents].update(:changed_on=>Date.today - 30)
+      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.should == [d.strftime('%F'), d30.strftime('%F')]
+
+      DB[:parents].update(:changed_on=>d30)
+      DB[:children].update(:parent_id1=>2)
+      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.should == [d.strftime('%F'), d.strftime('%F')]
+
+      DB[:parents].update(:changed_on=>d30)
       DB[:children].delete
-      DB[:parents].get(:changed_on).strftime('%F').should == Date.today.strftime('%F')
+      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.should == [d30.strftime('%F'), d.strftime('%F')]
     end
 
     specify "Should update the timestamp column of the related table when there is a composite foreign key" do
