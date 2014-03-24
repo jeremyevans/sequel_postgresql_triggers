@@ -35,11 +35,15 @@ module Sequel
 
         pgt_trigger(counted_table, trigger_name, function_name, [:insert, :update, :delete], <<-SQL)
         BEGIN
-          IF (TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND (NEW.#{id_column} <> OLD.#{id_column}) OR OLD.#{id_column} IS NULL)) THEN
-            UPDATE #{table} SET #{count_column} = #{count_column} + 1 WHERE #{main_column} = NEW.#{id_column};
-          END IF;
-          IF (TG_OP = 'DELETE' OR (TG_OP = 'UPDATE' AND (NEW.#{id_column} <> OLD.#{id_column}) OR NEW.#{id_column} IS NULL)) THEN
-            UPDATE #{table} SET #{count_column} = #{count_column} - 1 WHERE #{main_column} = OLD.#{id_column};
+          IF (TG_OP = 'UPDATE' AND (NEW.#{id_column} = OLD.#{id_column} OR (OLD.#{id_column} IS NULL AND NEW.#{id_column} IS NULL))) THEN
+            RETURN NEW;
+          ELSE 
+            IF ((TG_OP = 'INSERT' OR TG_OP = 'UPDATE') AND NEW.#{id_column} IS NOT NULL) THEN
+              UPDATE #{table} SET #{count_column} = #{count_column} + 1 WHERE #{main_column} = NEW.#{id_column};
+            END IF;
+            IF ((TG_OP = 'DELETE' OR TG_OP = 'UPDATE') AND OLD.#{id_column} IS NOT NULL) THEN
+              UPDATE #{table} SET #{count_column} = #{count_column} - 1 WHERE #{main_column} = OLD.#{id_column};
+            END IF;
           END IF;
 
           IF (TG_OP = 'DELETE') THEN
@@ -118,10 +122,10 @@ module Sequel
           IF (TG_OP = 'UPDATE' AND NEW.#{id_column} = OLD.#{id_column}) THEN
             UPDATE #{table} SET #{sum_column} = #{sum_column} + NEW.#{summed_column} - OLD.#{summed_column} WHERE #{main_column} = NEW.#{id_column};
           ELSE
-            IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
+            IF ((TG_OP = 'INSERT' OR TG_OP = 'UPDATE') AND NEW.#{id_column} IS NOT NULL) THEN
               UPDATE #{table} SET #{sum_column} = #{sum_column} + NEW.#{summed_column} WHERE #{main_column} = NEW.#{id_column};
             END IF;
-            IF (TG_OP = 'DELETE' OR TG_OP = 'UPDATE') THEN
+            IF ((TG_OP = 'DELETE' OR TG_OP = 'UPDATE') AND OLD.#{id_column} IS NOT NULL) THEN
               UPDATE #{table} SET #{sum_column} = #{sum_column} - OLD.#{summed_column} WHERE #{main_column} = OLD.#{id_column};
             END IF;
           END IF;
