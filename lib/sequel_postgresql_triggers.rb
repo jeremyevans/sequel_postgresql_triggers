@@ -37,7 +37,7 @@ module Sequel
         BEGIN
           IF (TG_OP = 'UPDATE' AND (NEW.#{id_column} = OLD.#{id_column} OR (OLD.#{id_column} IS NULL AND NEW.#{id_column} IS NULL))) THEN
             RETURN NEW;
-          ELSE 
+          ELSE
             IF ((TG_OP = 'INSERT' OR TG_OP = 'UPDATE') AND NEW.#{id_column} IS NOT NULL) THEN
               UPDATE #{table} SET #{count_column} = #{count_column} + 1 WHERE #{main_column} = NEW.#{id_column};
             END IF;
@@ -53,7 +53,7 @@ module Sequel
         END;
         SQL
       end
-      
+
       # Turns a column in the table into a created at timestamp column, which
       # always contains the timestamp the record was inserted into the database.
       # Arguments:
@@ -75,7 +75,7 @@ module Sequel
         END;
         SQL
       end
-      
+
       # Makes all given columns in the given table immutable, so an exception
       # is raised if there is an attempt to modify the value when updating the
       # record. Arguments:
@@ -90,13 +90,13 @@ module Sequel
           new = "NEW.#{quote_identifier(c)}"
           <<-END
             IF #{new} IS DISTINCT FROM #{old} THEN
-                RAISE EXCEPTION 'Attempted event_id update: Old: %, New: %', #{old}, #{new};
+                RAISE EXCEPTION 'Attempted #{c} update: Old: %, New: %', #{old}, #{new};
             END IF;
           END
         end.join("\n")
         pgt_trigger(table, trigger_name, function_name, :update, "BEGIN #{ifs} RETURN NEW; END;")
       end
-      
+
       # Turns a column in the main table into a sum cache.  A sum cache is a
       # column in the main table with the sum of a column in the summed table
       # for the matching id. Arguments:
@@ -176,7 +176,7 @@ module Sequel
         SQL
         pgt_trigger(main_table, trigger_name, function_name, [:insert, :delete, :update], sql, :after=>true)
       end
-      
+
       # Turns a column in the table into a updated at timestamp column, which
       # always contains the timestamp the record was inserted or last updated.
       # Arguments:
@@ -193,9 +193,9 @@ module Sequel
         END;
         SQL
       end
-      
+
       private
-      
+
       # Add or replace a function that returns trigger to handle the action,
       # and add a trigger that calls the function.
       def pgt_trigger(table, trigger_name, function_name, events, definition, opts={})
