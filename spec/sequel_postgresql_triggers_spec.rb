@@ -1,6 +1,8 @@
-#!/usr/bin/env spec
+#!/usr/bin/env ruby
 require 'rubygems'
 require 'sequel'
+require 'minitest/spec'
+require 'minitest/autorun'
 
 DB = Sequel.connect(ENV['PGT_SPEC_DB']||'postgres:///spgt_test?user=postgres')
 
@@ -26,7 +28,7 @@ describe "PostgreSQL Triggers" do
     DB.drop_language(:plpgsql, :cascade=>true) if DB.server_version < 90000
   end
 
-  context "PostgreSQL Counter Cache Trigger" do
+  describe "PostgreSQL Counter Cache Trigger" do
     before do
       DB.create_table(:accounts){integer :id; integer :num_entries, :default=>0}
       DB.create_table(:entries){integer :id; integer :account_id}
@@ -39,45 +41,45 @@ describe "PostgreSQL Triggers" do
       DB.drop_table(:entries, :accounts)
     end
 
-    specify "Should modify counter cache when adding or removing records" do
-      DB[:accounts].order(:id).select_map(:num_entries).should == [0, 0]
+    it "Should modify counter cache when adding or removing records" do
+      DB[:accounts].order(:id).select_map(:num_entries).must_equal [0, 0]
 
       DB[:entries] << {:id=>1, :account_id=>1}
-      DB[:accounts].order(:id).select_map(:num_entries).should == [1, 0]
+      DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 0]
 
       DB[:entries] << {:id=>2, :account_id=>1}
-      DB[:accounts].order(:id).select_map(:num_entries).should == [2, 0]
+      DB[:accounts].order(:id).select_map(:num_entries).must_equal [2, 0]
       
       DB[:entries] << {:id=>3, :account_id=>nil}
-      DB[:accounts].order(:id).select_map(:num_entries).should == [2, 0]
+      DB[:accounts].order(:id).select_map(:num_entries).must_equal [2, 0]
       
       DB[:entries].where(:id=>3).update(:account_id=>2)
-      DB[:accounts].order(:id).select_map(:num_entries).should == [2, 1]
+      DB[:accounts].order(:id).select_map(:num_entries).must_equal [2, 1]
       
       DB[:entries].where(:id=>2).update(:account_id=>2)
-      DB[:accounts].order(:id).select_map(:num_entries).should == [1, 2]
+      DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 2]
       
       DB[:entries].where(:id=>2).update(:account_id=>nil)
-      DB[:accounts].order(:id).select_map(:num_entries).should == [1, 1]
+      DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 1]
       
       DB[:entries].where(:id=>2).update(:id=>4)
-      DB[:accounts].order(:id).select_map(:num_entries).should == [1, 1]
+      DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 1]
       
       DB[:entries].where(:id=>4).update(:account_id=>2)
-      DB[:accounts].order(:id).select_map(:num_entries).should == [1, 2]
+      DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 2]
       
       DB[:entries].where(:id=>4).update(:account_id=>nil)
-      DB[:accounts].order(:id).select_map(:num_entries).should == [1, 1]
+      DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 1]
       
       DB[:entries].filter(:id=>4).delete
-      DB[:accounts].order(:id).select_map(:num_entries).should == [1, 1]
+      DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 1]
       
       DB[:entries].delete
-      DB[:accounts].order(:id).select_map(:num_entries).should == [0, 0]
+      DB[:accounts].order(:id).select_map(:num_entries).must_equal [0, 0]
     end
   end
 
-  context "PostgreSQL Created At Trigger" do
+  describe "PostgreSQL Created At Trigger" do
     before do
       DB.create_table(:accounts){integer :id; timestamp :added_on}
       DB.pgt_created_at(:accounts, :added_on)
@@ -87,21 +89,21 @@ describe "PostgreSQL Triggers" do
       DB.drop_table(:accounts)
     end
 
-    specify "Should set the column upon insertion and ignore modifications afterward" do
+    it "Should set the column upon insertion and ignore modifications afterward" do
       DB[:accounts] << {:id=>1}
       t = DB[:accounts].get(:added_on)
-      t.strftime('%F').should == Date.today.strftime('%F')
+      t.strftime('%F').must_equal Date.today.strftime('%F')
       DB[:accounts].update(:added_on=>Date.today - 60)
-      DB[:accounts].get(:added_on).should == t
+      DB[:accounts].get(:added_on).must_equal t
       DB[:accounts] << {:id=>2}
       ds = DB[:accounts].select(:added_on)
-      DB[:accounts].select((Sequel::SQL::NumericExpression.new(:NOOP, ds.filter(:id=>2)) > ds.filter(:id=>1)).as(:x)).first[:x].should == true
+      DB[:accounts].select((Sequel::SQL::NumericExpression.new(:NOOP, ds.filter(:id=>2)) > ds.filter(:id=>1)).as(:x)).first[:x].must_equal true
       DB[:accounts].filter(:id=>1).update(:id=>3)
-      DB[:accounts].select((Sequel::SQL::NumericExpression.new(:NOOP, ds.filter(:id=>2)) > ds.filter(:id=>3)).as(:x)).first[:x].should == true
+      DB[:accounts].select((Sequel::SQL::NumericExpression.new(:NOOP, ds.filter(:id=>2)) > ds.filter(:id=>3)).as(:x)).first[:x].must_equal true
     end
   end
 
-  context "PostgreSQL Immutable Trigger" do
+  describe "PostgreSQL Immutable Trigger" do
     before do
       DB.create_table(:accounts){integer :id; integer :balance, :default=>0}
       DB.pgt_immutable(:accounts, :balance)
@@ -112,29 +114,29 @@ describe "PostgreSQL Triggers" do
       DB.drop_table(:accounts)
     end
 
-    specify "Should allow modifying columns not marked as immutable" do
-      proc{DB[:accounts].update(:id=>2)}.should_not raise_error
+    it "Should allow modifying columns not marked as immutable" do
+      DB[:accounts].update(:id=>2)
     end
 
-    specify "Should allow updating a column to its existing value" do
-      proc{DB[:accounts].update(:balance=>0)}.should_not raise_error
-      proc{DB[:accounts].update(:balance=>Sequel.*(:balance, :balance))}.should_not raise_error
+    it "Should allow updating a column to its existing value" do
+      DB[:accounts].update(:balance=>0)
+      DB[:accounts].update(:balance=>Sequel.*(:balance, :balance))
     end
 
-    specify "Should not allow modifying a column's value" do
-      proc{DB[:accounts].update(:balance=>1)}.should raise_error(Sequel::DatabaseError)
+    it "Should not allow modifying a column's value" do
+      proc{DB[:accounts].update(:balance=>1)}.must_raise(Sequel::DatabaseError)
     end
 
-    specify "Should handle NULL values correctly" do
-      proc{DB[:accounts].update(:balance=>nil)}.should raise_error(Sequel::DatabaseError)
+    it "Should handle NULL values correctly" do
+      proc{DB[:accounts].update(:balance=>nil)}.must_raise(Sequel::DatabaseError)
       DB[:accounts].delete
       DB[:accounts] << {:id=>1, :balance=>nil}
-      proc{DB[:accounts].update(:balance=>nil)}.should_not raise_error
-      proc{DB[:accounts].update(:balance=>0)}.should raise_error(Sequel::DatabaseError)
+      DB[:accounts].update(:balance=>nil)
+      proc{DB[:accounts].update(:balance=>0)}.must_raise(Sequel::DatabaseError)
     end
   end
 
-  context "PostgreSQL Sum Cache Trigger" do
+  describe "PostgreSQL Sum Cache Trigger" do
     before do
       DB.create_table(:accounts){integer :id; integer :balance, :default=>0}
       DB.create_table(:entries){integer :id; integer :account_id; integer :amount}
@@ -147,48 +149,48 @@ describe "PostgreSQL Triggers" do
       DB.drop_table(:entries, :accounts)
     end
 
-    specify "Should modify sum cache when adding, updating, or removing records" do
-      DB[:accounts].order(:id).select_map(:balance).should == [0, 0]
+    it "Should modify sum cache when adding, updating, or removing records" do
+      DB[:accounts].order(:id).select_map(:balance).must_equal [0, 0]
 
       DB[:entries] << {:id=>1, :account_id=>1, :amount=>100}
-      DB[:accounts].order(:id).select_map(:balance).should == [100, 0]
+      DB[:accounts].order(:id).select_map(:balance).must_equal [100, 0]
 
       DB[:entries] << {:id=>2, :account_id=>1, :amount=>200}
-      DB[:accounts].order(:id).select_map(:balance).should == [300, 0]
+      DB[:accounts].order(:id).select_map(:balance).must_equal [300, 0]
       
       DB[:entries] << {:id=>3, :account_id=>nil, :amount=>500}
-      DB[:accounts].order(:id).select_map(:balance).should == [300, 0]
+      DB[:accounts].order(:id).select_map(:balance).must_equal [300, 0]
       
       DB[:entries].where(:id=>3).update(:account_id=>2)
-      DB[:accounts].order(:id).select_map(:balance).should == [300, 500]
+      DB[:accounts].order(:id).select_map(:balance).must_equal [300, 500]
       
       DB[:entries].exclude(:id=>2).update(:amount=>Sequel.*(:amount, 2))
-      DB[:accounts].order(:id).select_map(:balance).should == [400, 1000]
+      DB[:accounts].order(:id).select_map(:balance).must_equal [400, 1000]
       
       DB[:entries].where(:id=>2).update(:account_id=>2)
-      DB[:accounts].order(:id).select_map(:balance).should == [200, 1200]
+      DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1200]
       
       DB[:entries].where(:id=>2).update(:account_id=>nil)
-      DB[:accounts].order(:id).select_map(:balance).should == [200, 1000]
+      DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1000]
       
       DB[:entries].where(:id=>2).update(:id=>4)
-      DB[:accounts].order(:id).select_map(:balance).should == [200, 1000]
+      DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1000]
       
       DB[:entries].where(:id=>4).update(:account_id=>2)
-      DB[:accounts].order(:id).select_map(:balance).should == [200, 1200]
+      DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1200]
       
       DB[:entries].where(:id=>4).update(:account_id=>nil)
-      DB[:accounts].order(:id).select_map(:balance).should == [200, 1000]
+      DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1000]
       
       DB[:entries].filter(:id=>4).delete
-      DB[:accounts].order(:id).select_map(:balance).should == [200, 1000]
+      DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1000]
       
       DB[:entries].delete
-      DB[:accounts].order(:id).select_map(:balance).should == [0, 0]
+      DB[:accounts].order(:id).select_map(:balance).must_equal [0, 0]
     end
   end
 
-  context "PostgreSQL Updated At Trigger" do
+  describe "PostgreSQL Updated At Trigger" do
     before do
       DB.create_table(:accounts){integer :id; timestamp :changed_on}
       DB.pgt_updated_at(:accounts, :changed_on)
@@ -198,19 +200,19 @@ describe "PostgreSQL Triggers" do
       DB.drop_table(:accounts)
     end
 
-    specify "Should set the column always to the current timestamp" do
+    it "Should set the column always to the current timestamp" do
       DB[:accounts] << {:id=>1}
       t = DB[:accounts].get(:changed_on)
-      t.strftime('%F').should == Date.today.strftime('%F')
+      t.strftime('%F').must_equal Date.today.strftime('%F')
       DB[:accounts] << {:id=>2}
       ds = DB[:accounts].select(:changed_on)
-      DB[:accounts].select((Sequel::SQL::NumericExpression.new(:NOOP, ds.filter(:id=>2)) > ds.filter(:id=>1)).as(:x)).first[:x].should == true
+      DB[:accounts].select((Sequel::SQL::NumericExpression.new(:NOOP, ds.filter(:id=>2)) > ds.filter(:id=>1)).as(:x)).first[:x].must_equal true
       DB[:accounts].filter(:id=>1).update(:id=>3)
-      DB[:accounts].select((Sequel::SQL::NumericExpression.new(:NOOP, ds.filter(:id=>3)) > ds.filter(:id=>2)).as(:x)).first[:x].should == true
+      DB[:accounts].select((Sequel::SQL::NumericExpression.new(:NOOP, ds.filter(:id=>3)) > ds.filter(:id=>2)).as(:x)).first[:x].must_equal true
     end
   end
 
-  context "PostgreSQL Touch Trigger" do
+  describe "PostgreSQL Touch Trigger" do
     before do
       DB.create_table(:parents){integer :id1; integer :id2; integer :child_id; timestamp :changed_on}
       DB.create_table(:children){integer :id; integer :parent_id1; integer :parent_id2; timestamp :changed_on}
@@ -220,86 +222,86 @@ describe "PostgreSQL Triggers" do
       DB.drop_table(:children, :parents)
     end
 
-    specify "Should update the timestamp column of the related table when adding, updating or removing records" do
+    it "Should update the timestamp column of the related table when adding, updating or removing records" do
       DB.pgt_touch(:children, :parents, :changed_on, :id1=>:parent_id1)
       d = Date.today
       d30 = Date.today - 30
       DB[:parents] << {:id1=>1, :changed_on=>d30}
       DB[:parents] << {:id1=>2, :changed_on=>d30}
       DB[:children] << {:id=>1, :parent_id1=>1}
-      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.should == [d.strftime('%F'), d30.strftime('%F')]
+      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.must_equal [d.strftime('%F'), d30.strftime('%F')]
 
       DB[:parents].update(:changed_on=>d30)
       DB[:children].update(:id=>2)
-      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.should == [d.strftime('%F'), d30.strftime('%F')]
+      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.must_equal [d.strftime('%F'), d30.strftime('%F')]
 
       DB[:parents].update(:changed_on=>d30)
       DB[:children].update(:parent_id1=>2)
-      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.should == [d.strftime('%F'), d.strftime('%F')]
+      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.must_equal [d.strftime('%F'), d.strftime('%F')]
 
       DB[:parents].update(:changed_on=>d30)
       DB[:children].update(:parent_id1=>nil)
-      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.should == [d30.strftime('%F'), d.strftime('%F')]
+      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.must_equal [d30.strftime('%F'), d.strftime('%F')]
 
       DB[:parents].update(:changed_on=>d30)
       DB[:children].update(:parent_id2=>1)
-      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.should == [d30.strftime('%F'), d30.strftime('%F')]
+      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.must_equal [d30.strftime('%F'), d30.strftime('%F')]
 
       DB[:parents].update(:changed_on=>d30)
       DB[:children].update(:parent_id1=>2)
-      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.should == [d30.strftime('%F'), d.strftime('%F')]
+      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.must_equal [d30.strftime('%F'), d.strftime('%F')]
 
       DB[:parents].update(:changed_on=>d30)
       DB[:children].delete
-      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.should == [d30.strftime('%F'), d.strftime('%F')]
+      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.must_equal [d30.strftime('%F'), d.strftime('%F')]
 
       DB[:parents].update(:changed_on=>d30)
       DB[:children] << {:id=>2, :parent_id1=>nil}
-      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.should == [d30.strftime('%F'), d30.strftime('%F')]
+      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.must_equal [d30.strftime('%F'), d30.strftime('%F')]
       DB[:children].where(:id=>2).delete
-      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.should == [d30.strftime('%F'), d30.strftime('%F')]
+      DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.must_equal [d30.strftime('%F'), d30.strftime('%F')]
     end
 
-    specify "Should update the timestamp column of the related table when there is a composite foreign key" do
+    it "Should update the timestamp column of the related table when there is a composite foreign key" do
       DB.pgt_touch(:children, :parents, :changed_on, :id1=>:parent_id1, :id2=>:parent_id2)
       DB[:parents] << {:id1=>1, :id2=>2, :changed_on=>Date.today - 30}
       DB[:children] << {:id=>1, :parent_id1=>1, :parent_id2=>2}
-      DB[:parents].get(:changed_on).strftime('%F').should == Date.today.strftime('%F')
+      DB[:parents].get(:changed_on).strftime('%F').must_equal Date.today.strftime('%F')
       DB[:parents].update(:changed_on=>Date.today - 30)
       DB[:children].update(:id=>2)
-      DB[:parents].get(:changed_on).strftime('%F').should == Date.today.strftime('%F')
+      DB[:parents].get(:changed_on).strftime('%F').must_equal Date.today.strftime('%F')
       DB[:parents].update(:changed_on=>Date.today - 30)
       DB[:children].delete
-      DB[:parents].get(:changed_on).strftime('%F').should == Date.today.strftime('%F')
+      DB[:parents].get(:changed_on).strftime('%F').must_equal Date.today.strftime('%F')
     end
 
-    specify "Should update timestamps correctly when two tables touch each other" do
+    it "Should update timestamps correctly when two tables touch each other" do
       DB.pgt_touch(:children, :parents, :changed_on, :id1=>:parent_id1)
       DB.pgt_touch(:parents, :children, :changed_on, :id=>:child_id)
       DB[:parents] << {:id1=>1, :child_id=>1, :changed_on=>Date.today - 30}
       DB[:children] << {:id=>1, :parent_id1=>1, :changed_on=>Date.today - 30}
-      DB[:parents].get(:changed_on).strftime('%F').should == Date.today.strftime('%F')
-      DB[:children].get(:changed_on).strftime('%F').should == Date.today.strftime('%F')
+      DB[:parents].get(:changed_on).strftime('%F').must_equal Date.today.strftime('%F')
+      DB[:children].get(:changed_on).strftime('%F').must_equal Date.today.strftime('%F')
       time = DB[:parents].get(:changed_on)
       DB[:parents].update(:id2=>4)
-      DB[:parents].get(:changed_on).should > time
-      DB[:children].get(:changed_on).should > time
+      DB[:parents].get(:changed_on).must_be :>,  time
+      DB[:children].get(:changed_on).must_be :>,  time
       time = DB[:parents].get(:changed_on)
       DB[:children].update(:id=>1)
-      DB[:parents].get(:changed_on).should > time
-      DB[:children].get(:changed_on).should > time
+      DB[:parents].get(:changed_on).must_be :>,  time
+      DB[:children].get(:changed_on).must_be :>,  time
       time = DB[:parents].get(:changed_on)
       DB[:children].delete
-      DB[:parents].get(:changed_on).should > time
+      DB[:parents].get(:changed_on).must_be :>,  time
     end
 
-    specify "Should update the timestamp on the related table if that timestamp is initially NULL" do
+    it "Should update the timestamp on the related table if that timestamp is initially NULL" do
       DB.pgt_touch(:children, :parents, :changed_on, :id1=>:parent_id1)
       DB[:parents] << {:id1=>1, :changed_on=>nil}
       DB[:children] << {:id=>1, :parent_id1=>1}
       changed_on = DB[:parents].get(:changed_on)
-      changed_on.should_not == nil
-      changed_on.strftime('%F').should == Date.today.strftime('%F')
+      changed_on.wont_equal nil
+      changed_on.strftime('%F').must_equal Date.today.strftime('%F')
     end
   end
 end
