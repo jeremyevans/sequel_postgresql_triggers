@@ -37,13 +37,15 @@ differs that upon update, the column is also set to CURRENT_TIMESTAMP.
 This takes quite a few arguments (see the RDoc) and sets up a
 counter cache so that when the counted table is inserted to
 or deleted from, records in the main table are updated with the
-count of the corresponding records in the counted table.
+count of the corresponding records in the counted table.  The counter
+cache column must have a default of 0 for this to work correctly.
 
 === Sum Cache - pgt_sum_cache
 
 Similar to pgt_counter_cache, except instead of storing a count
 of records in the main table, it stores the sum on one of the
-columns in summed table.
+columns in summed table. The sum cache column must have a default
+of 0 for this to work correctly.
 
 === Immutable Columns - pgt_immutable
 
