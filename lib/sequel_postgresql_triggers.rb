@@ -33,15 +33,25 @@ module Sequel
         main_column = quote_identifier(main_table_id_column)
         count_column = quote_identifier(counter_column)
 
+        if c = opts[:condition]
+          condition = (c.is_a?(Array) && !Sequel.condition_specifier?(c)) ? Sequel.expr(*c) : Sequel.expr(c)
+          column = condition.args[0].is_a?(Sequel::SQL::Identifier) ? condition.args[0].value : condition.args[0]
+          op = condition.op.to_s
+          value = condition.args[1]
+          update_condition = " AND (NEW.#{column} = OLD.#{column})"
+          increment_condition = " AND NEW.#{column} #{op} #{value}"
+          decrement_condition = " AND OLD.#{column} #{op} #{value}"
+        end
+
         pgt_trigger(counted_table, trigger_name, function_name, [:insert, :update, :delete], <<-SQL)
         BEGIN
-          IF (TG_OP = 'UPDATE' AND (NEW.#{id_column} = OLD.#{id_column} OR (OLD.#{id_column} IS NULL AND NEW.#{id_column} IS NULL))) THEN
+          IF (TG_OP = 'UPDATE' AND (NEW.#{id_column} = OLD.#{id_column} OR (OLD.#{id_column} IS NULL AND NEW.#{id_column} IS NULL)) #{update_condition}) THEN
             RETURN NEW;
           ELSE
-            IF ((TG_OP = 'INSERT' OR TG_OP = 'UPDATE') AND NEW.#{id_column} IS NOT NULL) THEN
+            IF ((TG_OP = 'INSERT' OR TG_OP = 'UPDATE') AND NEW.#{id_column} IS NOT NULL #{increment_condition}) THEN
               UPDATE #{table} SET #{count_column} = #{count_column} + 1 WHERE #{main_column} = NEW.#{id_column};
             END IF;
-            IF ((TG_OP = 'DELETE' OR TG_OP = 'UPDATE') AND OLD.#{id_column} IS NOT NULL) THEN
+            IF ((TG_OP = 'DELETE' OR TG_OP = 'UPDATE') AND OLD.#{id_column} IS NOT NULL #{decrement_condition}) THEN
               UPDATE #{table} SET #{count_column} = #{count_column} - 1 WHERE #{main_column} = OLD.#{id_column};
             END IF;
           END IF;
