@@ -190,6 +190,84 @@ describe "PostgreSQL Triggers" do
     end
   end
 
+  describe "PostgreSQL Sum Through Many Cache Trigger" do
+    before do
+      DB.loggers << Logger.new(STDOUT)
+      DB.create_table(:parents){integer :id; integer :balance, :default=>0}
+      DB.create_table(:children){integer :id; integer :amount}
+      DB.create_table(:links){integer :parent_id; integer :child_id} # integer :id;
+      DB.pgt_sum_through_many_cache(:parents, :id, :balance, :children, :id, :amount, :links, :parent_id, :child_id)
+      DB[:parents] << {:id=>1}
+      DB[:parents] << {:id=>2}
+    end
+
+    after do
+      DB.drop_table(:parents, :children, :links)
+    end
+
+    it "Should modify sum cache when adding, updating, or removing records" do
+      DB[:parents].order(:id).select_map(:balance).must_equal [0, 0]
+
+      DB[:children] << {:id=>1, :amount=>100}
+      DB[:links] << {:parent_id=>1, :child_id=>1}
+      DB[:parents].order(:id).select_map(:balance).must_equal [100, 0]
+
+      DB[:children] << {:id=>2, :amount=>200}
+      DB[:links] << {:parent_id=>1, :child_id=>2}
+      DB[:parents].order(:id).select_map(:balance).must_equal [300, 0]
+
+      DB[:children] << {:id=>3, :amount=>500}
+      DB[:parents].order(:id).select_map(:balance).must_equal [300, 0]
+      DB[:links] << {:parent_id=>2, :child_id=>3}
+      DB[:parents].order(:id).select_map(:balance).must_equal [300, 500]
+
+      DB[:links].where(:parent_id=>2, :child_id=>3).update(:parent_id=>1)
+      DB[:parents].order(:id).select_map(:balance).must_equal [800, 0]
+
+      DB[:children] << {:id=>4, :amount=>400}
+      DB[:links].where(:parent_id=>1, :child_id=>3).update(:child_id=>4)
+      DB[:parents].order(:id).select_map(:balance).must_equal [700, 0]
+
+      DB[:links].where(:parent_id=>1, :child_id=>4).update(:parent_id=>2, :child_id=>3)
+      DB[:parents].order(:id).select_map(:balance).must_equal [300, 500]
+
+      DB[:children].exclude(:id=>2).update(:amount=>Sequel.*(:amount, 2))
+      DB[:parents].order(:id).select_map(:balance).must_equal [400, 1000]
+
+      DB[:links].where(:parent_id=>1, :child_id=>2).update(:parent_id=>2)
+      DB[:parents].order(:id).select_map(:balance).must_equal [200, 1200]
+
+      DB[:links].where(:parent_id=>2, :child_id=>2).update(:parent_id=>nil)
+      DB[:parents].order(:id).select_map(:balance).must_equal [200, 1000]
+
+      DB[:links].where(:parent_id=>2, :child_id=>3).update(:child_id=>nil)
+      DB[:parents].order(:id).select_map(:balance).must_equal [200, 0]
+
+      DB[:links].where(:parent_id=>nil, :child_id=>2).update(:parent_id=>1)
+      DB[:parents].order(:id).select_map(:balance).must_equal [400, 0]
+
+      DB[:links].where(:parent_id=>2, :child_id=>nil).update(:child_id=>3)
+      DB[:parents].order(:id).select_map(:balance).must_equal [400, 1000]
+
+      DB[:children].where(:id=>2).update(:id=>4)
+      DB[:parents].order(:id).select_map(:balance).must_equal [200, 1000]
+
+      # Below this line do not work yet.
+
+      DB[:children].where(:id=>4).update(:account_id=>2)
+      DB[:parents].order(:id).select_map(:balance).must_equal [200, 1200]
+
+      DB[:children].where(:id=>4).update(:account_id=>nil)
+      DB[:parents].order(:id).select_map(:balance).must_equal [200, 1000]
+
+      DB[:children].filter(:id=>4).delete
+      DB[:parents].order(:id).select_map(:balance).must_equal [200, 1000]
+
+      DB[:children].delete
+      DB[:parents].order(:id).select_map(:balance).must_equal [0, 0]
+    end
+  end
+
   describe "PostgreSQL Updated At Trigger" do
     before do
       DB.create_table(:accounts){integer :id; timestamp :changed_on}
