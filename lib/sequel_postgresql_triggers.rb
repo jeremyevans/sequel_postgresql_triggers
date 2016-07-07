@@ -254,22 +254,22 @@ module Sequel
               /* RESOLVED
               /* sum_column is not NULL yet */
               IF (TG_OP = 'UPDATE') THEN
-                IF ((SELECT #{main_table}.#{sum_column} FROM #{main_table} WHERE #{main_table}.#{main_table_id_column} = OLD.#{main_table_fk_column}) IS NULL) THEN
-                  raise exception '0COLUMN: %', (SELECT #{sum_column} FROM #{main_table} WHERE #{main_table}.#{main_table_id_column} = OLD.#{main_table_fk_column});
+                IF ((SELECT #{sum_column} FROM #{main_table} WHERE #{main_table_id_column} = OLD.#{main_table_fk_column}) IS NULL) THEN
+                  raise exception '0COLUMN: %', (SELECT #{sum_column} FROM #{main_table} WHERE #{main_table_id_column} = OLD.#{main_table_fk_column});
                 END IF;
               END IF;
               /* sum_column is not NULL yet */
               */
 
               IF (NEW.#{main_table_fk_column} IS NOT NULL AND NEW.#{summed_table_fk_column} IS NOT NULL) THEN
-                UPDATE #{main_table} SET #{sum_column} = #{main_table}.#{sum_column} + (SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = NEW.#{summed_table_fk_column}) WHERE #{main_table}.#{main_table_id_column} = NEW.#{main_table_fk_column};
+                UPDATE #{main_table} SET #{sum_column} = #{sum_column} + (SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = NEW.#{summed_table_fk_column}) WHERE #{main_table_id_column} = NEW.#{main_table_fk_column};
               END IF;
 
               /* RESOLVED
               /* The above has set sum_column to NULL by now */
               IF (TG_OP = 'UPDATE') THEN
-                IF ((SELECT #{main_table}.#{sum_column} FROM #{main_table} WHERE #{main_table}.#{main_table_id_column} = OLD.#{main_table_fk_column}) IS NULL) THEN
-                  raise exception '1COLUMN: %', (SELECT #{sum_column} FROM #{main_table} WHERE #{main_table}.#{main_table_id_column} = OLD.#{main_table_fk_column});
+                IF ((SELECT #{sum_column} FROM #{main_table} WHERE #{main_table_id_column} = OLD.#{main_table_fk_column}) IS NULL) THEN
+                  raise exception '1COLUMN: %', (SELECT #{sum_column} FROM #{main_table} WHERE #{main_table_id_column} = OLD.#{main_table_fk_column});
                 END IF;
               END IF;
               /* The above has set sum_column to NULL by now */
@@ -283,13 +283,13 @@ module Sequel
                 raise exception 'BIGSELECT: %', (SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = OLD.#{summed_table_fk_column});
               END IF;
 
-              IF ((SELECT #{main_table}.#{sum_column} FROM #{main_table} WHERE #{main_table}.#{main_table_id_column} = OLD.#{main_table_fk_column}) IS NULL) THEN
-                raise exception '2COLUMN: %', (SELECT id FROM #{main_table} WHERE #{main_table}.#{main_table_id_column} = OLD.#{main_table_fk_column});
+              IF ((SELECT #{sum_column} FROM #{main_table} WHERE #{main_table_id_column} = OLD.#{main_table_fk_column}) IS NULL) THEN
+                raise exception '2COLUMN: %', (SELECT id FROM #{main_table} WHERE #{main_table_id_column} = OLD.#{main_table_fk_column});
               END IF;
               */
 
               IF (OLD.#{main_table_fk_column} IS NOT NULL AND OLD.#{summed_table_fk_column} IS NOT NULL) THEN
-                UPDATE #{main_table} SET #{sum_column} = #{main_table}.#{sum_column} - (SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = OLD.#{summed_table_fk_column}) WHERE #{main_table}.#{main_table_id_column} = OLD.#{main_table_fk_column};
+                UPDATE #{main_table} SET #{sum_column} = #{sum_column} - (SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = OLD.#{summed_table_fk_column}) WHERE #{main_table_id_column} = OLD.#{main_table_fk_column};
               END IF;
             END IF;
           END IF;
