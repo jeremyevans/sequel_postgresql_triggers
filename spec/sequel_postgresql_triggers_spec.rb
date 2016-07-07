@@ -195,7 +195,17 @@ describe "PostgreSQL Triggers" do
       DB.create_table(:parents){integer :id; integer :balance, :default=>0}
       DB.create_table(:children){integer :id; integer :amount}
       DB.create_table(:links){integer :parent_id; integer :child_id}
-      DB.pgt_sum_through_many_cache(:parents, :id, :balance, :children, :id, :amount, :links, :parent_id, :child_id)
+      DB.pgt_sum_through_many_cache(
+        :main_table=>:parents,
+        :main_table_id_column=>:id,
+        :sum_column=>:balance,
+        :summed_table=>:children,
+        :summed_table_id_column=>:id,
+        :summed_column=>:amount,
+        :join_table=>:links,
+        :main_table_fk_column=>:parent_id,
+        :summed_table_fk_column=>:child_id
+      )
       DB[:parents] << {:id=>1}
       DB[:parents] << {:id=>2}
     end

@@ -140,17 +140,27 @@ module Sequel
       # Turns a column in the main table into a sum cache through a join table.
       # A sum cache is a column in the main table with the sum of a column in the
       # summed table for the matching id. Arguments:
-      # * main_table : name of table holding counter cache column
-      # * main_table_id_column : column in main table matching main_table_fk_column in join_table
-      # * sum_column : column in main table containing the sum cache
-      # * summed_table : name of table being summed
-      # * summed_table_id_column : column in summed_table matching summed_table_fk_column in join_table
-      # * summed_column : column in summed_table being summed
-      # * join_table : name of table which joins main_table with summed_table
-      # * main_table_fk_column : column in join_table matching main_table_id_column in main_table
-      # * summed_table_fk_column : column in join_table matching summed_table_id_column in summed_table
-      # * opts : option hash, see module documentation
-      def pgt_sum_through_many_cache(main_table, main_table_id_column, sum_column, summed_table, summed_table_id_column, summed_column, join_table, main_table_fk_column, summed_table_fk_column, opts={})
+      # * opts : option hash, see module documentation, and below.
+      # * :main_table: name of table holding counter cache column
+      # * :main_table_id_column: column in main table matching main_table_fk_column in join_table
+      # * :sum_column: column in main table containing the sum cache
+      # * :summed_table: name of table being summed
+      # * :summed_table_id_column: column in summed_table matching summed_table_fk_column in join_table
+      # * :summed_column: column in summed_table being summed
+      # * :join_table: name of table which joins main_table with summed_table
+      # * :main_table_fk_column: column in join_table matching main_table_id_column in main_table
+      # * :summed_table_fk_column: column in join_table matching summed_table_id_column in summed_table
+      def pgt_sum_through_many_cache(opts={})
+        main_table = opts.fetch(:main_table)
+        main_table_id_column = opts.fetch(:main_table_id_column)
+        sum_column = opts.fetch(:sum_column)
+        summed_table = opts.fetch(:summed_table)
+        summed_table_id_column = opts.fetch(:summed_table_id_column)
+        summed_column = opts.fetch(:summed_column)
+        join_table = opts.fetch(:join_table)
+        main_table_fk_column = opts.fetch(:main_table_fk_column)
+        summed_table_fk_column = opts.fetch(:summed_table_fk_column)
+
         trigger_name = opts[:trigger_name] || "pgt_stmc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}__#{summed_column}__#{main_table_fk_column}__#{summed_table_fk_column}"
         function_name = opts[:function_name] || "pgt_stmc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table}__#{summed_table_id_column}__#{summed_column}__#{join_table}__#{main_table_fk_column}__#{summed_table_fk_column}"
         join_trigger_name = opts[:join_trigger_name] || "pgt_stmc_join_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}__#{summed_column}__#{main_table_fk_column}__#{summed_table_fk_column}"
