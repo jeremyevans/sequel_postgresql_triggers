@@ -47,6 +47,12 @@ of records in the main table, it stores the sum on one of the
 columns in summed table. The sum cache column must have a default
 of 0 for this to work correctly.
 
+=== Sum Through Many Cache - pgt_sum_through_many_cache
+
+Similar to pgt_sum_cache, except instead of a one-to-many relationship,
+it supports a many-to-many relationship with a single join table. The
+sum cache column must have a default of 0 for this to work correctly.
+
 === Immutable Columns - pgt_immutable
 
 This takes a table name and one or more column names, and adds
