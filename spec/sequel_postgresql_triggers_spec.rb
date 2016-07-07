@@ -252,16 +252,14 @@ describe "PostgreSQL Triggers" do
       DB[:children].where(:id=>2).update(:id=>4)
       DB[:parents].order(:id).select_map(:balance).must_equal [200, 1000]
 
-      # Below this line do not work yet.
-
-      DB[:children].where(:id=>4).update(:account_id=>2)
-      DB[:parents].order(:id).select_map(:balance).must_equal [200, 1200]
-
-      DB[:children].where(:id=>4).update(:account_id=>nil)
-      DB[:parents].order(:id).select_map(:balance).must_equal [200, 1000]
+      DB[:links] << {:parent_id=>2, :child_id=>4}
+      DB[:parents].order(:id).select_map(:balance).must_equal [200, 2000]
 
       DB[:children].filter(:id=>4).delete
       DB[:parents].order(:id).select_map(:balance).must_equal [200, 1000]
+
+      DB[:links].filter(:parent_id=>1, :child_id=>1).delete
+      DB[:parents].order(:id).select_map(:balance).must_equal [0, 1000]
 
       DB[:children].delete
       DB[:parents].order(:id).select_map(:balance).must_equal [0, 0]

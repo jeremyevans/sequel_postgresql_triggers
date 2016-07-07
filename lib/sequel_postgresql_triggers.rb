@@ -138,15 +138,6 @@ module Sequel
       end
 
       # TODO: Add docs.
-      # :parents main_table
-      # :id main_table_id_column
-      # :balance sum_column
-      # :children summed_table
-      # :id summed_table_id_column
-      # :amount summed_column
-      # :links join_table
-      # :parent_id main_table_fk_column
-      # :child_id summed_table_fk_column
       def pgt_sum_through_many_cache(main_table, main_table_id_column, sum_column, summed_table, summed_table_id_column, summed_column, join_table, main_table_fk_column, summed_table_fk_column, opts={})
         trigger_name = opts[:trigger_name] || "pgt_stmc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}__#{summed_column}__#{main_table_fk_column}__#{summed_table_fk_column}"
         function_name = opts[:function_name] || "pgt_stmc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table}__#{summed_table_id_column}__#{summed_column}__#{join_table}__#{main_table_fk_column}__#{summed_table_fk_column}"
@@ -185,111 +176,18 @@ module Sequel
         END;
         SQL
 
-          # raise exception 'TG_TABLE_NAME: %', TG_TABLE_NAME;
-          # IF (TG_OP = 'UPDATE' AND NEW.#{summed_table_fk_column} = OLD.#{summed_table_fk_column}) THEN
-          # ELSE
-          #   IF ((TG_OP = 'INSERT' OR TG_OP = 'UPDATE') AND NEW.#{summed_table_fk_column} IS NOT NULL) THEN
-          #     UPDATE #{main_table} SET #{sum_column} = #{sum_column} + (SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = NEW.#{summed_table_fk_column}) WHERE #{main_table_id_column} = NEW.#{main_table_fk_column};
-          #   END IF;
-          #   IF ((TG_OP = 'DELETE' OR TG_OP = 'UPDATE') AND OLD.#{summed_table_fk_column} IS NOT NULL) THEN
-          #     UPDATE #{main_table} SET #{sum_column} = #{sum_column} - (SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = OLD.#{summed_table_fk_column}) WHERE #{main_table_id_column} = OLD.#{main_table_fk_column};
-          #   END IF;
-          # END IF;
-
-        # # Bugged when setting child_id NULL
-        # pgt_trigger(orig_join_table, "#{join_trigger_name}", "#{join_function_name}", [:insert, :delete, :update], <<-SQL)
-        # BEGIN
-        #   IF (TG_OP = 'UPDATE' AND NEW.#{main_table_fk_column} = OLD.#{main_table_fk_column} AND NEW.#{summed_table_fk_column} = OLD.#{summed_table_fk_column}) THEN
-        #   ELSE
-        #     IF ((TG_OP = 'INSERT' OR TG_OP = 'UPDATE') AND (NEW.#{main_table_fk_column} IS NOT NULL OR NEW.#{summed_table_fk_column} IS NOT NULL)) THEN
-        #       UPDATE #{main_table} SET #{sum_column} = #{sum_column} + (SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = NEW.#{summed_table_fk_column}) WHERE #{main_table_id_column} = NEW.#{main_table_fk_column};
-        #     END IF;
-        #     IF ((TG_OP = 'DELETE' OR TG_OP = 'UPDATE') AND (OLD.#{main_table_fk_column} IS NOT NULL OR OLD.#{summed_table_fk_column} IS NOT NULL)) THEN
-        #       UPDATE #{main_table} SET #{sum_column} = #{sum_column} - (SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = OLD.#{summed_table_fk_column}) WHERE #{main_table_id_column} = OLD.#{main_table_fk_column};
-        #     END IF;
-        #   END IF;
-        #   IF (TG_OP = 'DELETE') THEN
-        #     RETURN OLD;
-        #   END IF;
-        #   RETURN NEW;
-        # END;
-        # SQL
-
-        # BEGIN
-        #   IF (TG_OP = 'UPDATE' AND NEW.#{main_table_fk_column} = OLD.#{main_table_fk_column} AND NEW.#{summed_table_fk_column} = OLD.#{summed_table_fk_column}) THEN
-        #   ELSE
-        #     IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
-        #       IF (NEW.#{main_table_fk_column} IS NOT NULL) THEN
-        #         UPDATE #{main_table} SET #{sum_column} = #{sum_column} + (SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = NEW.#{summed_table_fk_column}) WHERE #{main_table_id_column} = NEW.#{main_table_fk_column};
-        #       ELSE
-        #         IF (NEW.#{summed_table_fk_column} IS NOT NULL) THEN
-        #           UPDATE #{main_table} SET #{sum_column} = #{sum_column} + (SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = NEW.#{summed_table_fk_column}) WHERE #{main_table_id_column} = NEW.#{main_table_fk_column};
-        #         END IF;
-        #       END IF;
-        #     END IF;
-        #     IF (TG_OP = 'DELETE' OR TG_OP = 'UPDATE') THEN
-        #       IF (OLD.#{main_table_fk_column} IS NOT NULL) THEN
-        #         UPDATE #{main_table} SET #{sum_column} = #{sum_column} - (SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = OLD.#{summed_table_fk_column}) WHERE #{main_table_id_column} = OLD.#{main_table_fk_column};
-        #       ELSE
-        #         IF (OLD.#{summed_table_fk_column} IS NOT NULL) THEN
-        #           UPDATE #{main_table} SET #{sum_column} = #{sum_column} - (SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = OLD.#{summed_table_fk_column}) WHERE #{main_table_id_column} = OLD.#{main_table_fk_column};
-        #         END IF;
-        #       END IF;
-        #     END IF;
-        #   END IF;
-        #   IF (TG_OP = 'DELETE') THEN
-        #     RETURN OLD;
-        #   END IF;
-        #   RETURN NEW;
-        # END;
-        # SQL
-
-
-        pgt_trigger(orig_join_table, "#{join_trigger_name}", "#{join_function_name}", [:insert, :delete, :update], <<-SQL)
+        pgt_trigger(orig_join_table, join_trigger_name, join_function_name, [:insert, :delete, :update], <<-SQL)
         BEGIN
           IF (TG_OP = 'UPDATE' AND NEW.#{main_table_fk_column} = OLD.#{main_table_fk_column} AND NEW.#{summed_table_fk_column} = OLD.#{summed_table_fk_column}) THEN
           ELSE
             IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
-
-              /* RESOLVED
-              /* sum_column is not NULL yet */
-              IF (TG_OP = 'UPDATE') THEN
-                IF ((SELECT #{sum_column} FROM #{main_table} WHERE #{main_table_id_column} = OLD.#{main_table_fk_column}) IS NULL) THEN
-                  raise exception '0COLUMN: %', (SELECT #{sum_column} FROM #{main_table} WHERE #{main_table_id_column} = OLD.#{main_table_fk_column});
-                END IF;
-              END IF;
-              /* sum_column is not NULL yet */
-              */
-
               IF (NEW.#{main_table_fk_column} IS NOT NULL AND NEW.#{summed_table_fk_column} IS NOT NULL) THEN
-                UPDATE #{main_table} SET #{sum_column} = #{sum_column} + (SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = NEW.#{summed_table_fk_column}) WHERE #{main_table_id_column} = NEW.#{main_table_fk_column};
+                UPDATE #{main_table} SET #{sum_column} = #{sum_column} + (SELECT SUM(#{summed_column}) AS #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = NEW.#{summed_table_fk_column}) WHERE #{main_table_id_column} = NEW.#{main_table_fk_column};
               END IF;
-
-              /* RESOLVED
-              /* The above has set sum_column to NULL by now */
-              IF (TG_OP = 'UPDATE') THEN
-                IF ((SELECT #{sum_column} FROM #{main_table} WHERE #{main_table_id_column} = OLD.#{main_table_fk_column}) IS NULL) THEN
-                  raise exception '1COLUMN: %', (SELECT #{sum_column} FROM #{main_table} WHERE #{main_table_id_column} = OLD.#{main_table_fk_column});
-                END IF;
-              END IF;
-              /* The above has set sum_column to NULL by now */
-              */
-
             END IF;
-
             IF (TG_OP = 'DELETE' OR TG_OP = 'UPDATE') THEN
-              /* RESOLVED
-              IF ((SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = OLD.#{summed_table_fk_column}) IS NULL) THEN
-                raise exception 'BIGSELECT: %', (SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = OLD.#{summed_table_fk_column});
-              END IF;
-
-              IF ((SELECT #{sum_column} FROM #{main_table} WHERE #{main_table_id_column} = OLD.#{main_table_fk_column}) IS NULL) THEN
-                raise exception '2COLUMN: %', (SELECT id FROM #{main_table} WHERE #{main_table_id_column} = OLD.#{main_table_fk_column});
-              END IF;
-              */
-
               IF (OLD.#{main_table_fk_column} IS NOT NULL AND OLD.#{summed_table_fk_column} IS NOT NULL) THEN
-                UPDATE #{main_table} SET #{sum_column} = #{sum_column} - (SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = OLD.#{summed_table_fk_column}) WHERE #{main_table_id_column} = OLD.#{main_table_fk_column};
+                UPDATE #{main_table} SET #{sum_column} = #{sum_column} - (SELECT SUM(#{summed_column}) AS #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = OLD.#{summed_table_fk_column}) WHERE #{main_table_id_column} = OLD.#{main_table_fk_column};
               END IF;
             END IF;
           END IF;
