@@ -192,15 +192,13 @@ describe "PostgreSQL Triggers" do
 
   describe "PostgreSQL Sum Through Many Cache Trigger" do
     before do
-      DB.create_table(:parents){integer :id; integer :balance, :default=>0}
-      DB.create_table(:children){integer :id; integer :amount}
-      DB.create_table(:links){integer :parent_id; integer :child_id}
+      DB.create_table(:parents){primary_key :id; integer :balance, :default=>0, :null=>false}
+      DB.create_table(:children){primary_key :id; integer :amount, :null=>false}
+      DB.create_table(:links){integer :parent_id, :null=>false; integer :child_id, :null=>false; unique [:parent_id, :child_id]}
       DB.pgt_sum_through_many_cache(
         :main_table=>:parents,
-        :main_table_id_column=>:id,
         :sum_column=>:balance,
         :summed_table=>:children,
-        :summed_table_id_column=>:id,
         :summed_column=>:amount,
         :join_table=>:links,
         :main_table_fk_column=>:parent_id,
@@ -211,7 +209,7 @@ describe "PostgreSQL Triggers" do
     end
 
     after do
-      DB.drop_table(:parents, :children, :links)
+      DB.drop_table(:links, :parents, :children)
     end
 
     it "Should modify sum cache when adding, updating, or removing records" do
@@ -246,31 +244,37 @@ describe "PostgreSQL Triggers" do
       DB[:links].where(:parent_id=>1, :child_id=>2).update(:parent_id=>2)
       DB[:parents].order(:id).select_map(:balance).must_equal [200, 1200]
 
-      DB[:links].where(:parent_id=>2, :child_id=>2).update(:parent_id=>nil)
-      DB[:parents].order(:id).select_map(:balance).must_equal [200, 1000]
-
-      DB[:links].where(:parent_id=>2, :child_id=>3).update(:child_id=>nil)
-      DB[:parents].order(:id).select_map(:balance).must_equal [200, 0]
-
-      DB[:links].where(:parent_id=>nil, :child_id=>2).update(:parent_id=>1)
-      DB[:parents].order(:id).select_map(:balance).must_equal [400, 0]
-
-      DB[:links].where(:parent_id=>2, :child_id=>nil).update(:child_id=>3)
+      DB[:links].where(:parent_id=>2, :child_id=>2).update(:parent_id=>1)
       DB[:parents].order(:id).select_map(:balance).must_equal [400, 1000]
 
-      DB[:children].where(:id=>2).update(:id=>4)
-      DB[:parents].order(:id).select_map(:balance).must_equal [200, 1000]
+      DB[:links].where(:parent_id=>1, :child_id=>2).update(:child_id=>3)
+      DB[:parents].order(:id).select_map(:balance).must_equal [1200, 1000]
 
       DB[:links] << {:parent_id=>2, :child_id=>4}
-      DB[:parents].order(:id).select_map(:balance).must_equal [200, 2000]
+      DB[:parents].order(:id).select_map(:balance).must_equal [1200, 1800]
 
       DB[:children].filter(:id=>4).delete
-      DB[:parents].order(:id).select_map(:balance).must_equal [200, 1000]
+      DB[:parents].order(:id).select_map(:balance).must_equal [1200, 1000]
 
       DB[:links].filter(:parent_id=>1, :child_id=>1).delete
-      DB[:parents].order(:id).select_map(:balance).must_equal [0, 1000]
+      DB[:parents].order(:id).select_map(:balance).must_equal [1000, 1000]
+
+      DB[:children] << {:id=>4, :amount=>400}
+      DB[:parents].order(:id).select_map(:balance).must_equal [1000, 1400]
 
       DB[:children].delete
+      DB[:parents].order(:id).select_map(:balance).must_equal [0, 0]
+
+      DB[:children].multi_insert([{:id=>2, :amount=>200}, {:id=>1, :amount=>200}, {:id=>3, :amount=>1000}, {:id=>4, :amount=>400}])
+      DB[:parents].order(:id).select_map(:balance).must_equal [1000, 1400]
+
+      DB[:links].where(:child_id=>3).update(:child_id=>2)
+      DB[:parents].order(:id).select_map(:balance).must_equal [200, 600]
+
+      DB[:children].update(:amount=>10)
+      DB[:parents].order(:id).select_map(:balance).must_equal [10, 20]
+
+      DB[:links].delete
       DB[:parents].order(:id).select_map(:balance).must_equal [0, 0]
     end
   end

@@ -139,23 +139,27 @@ module Sequel
 
       # Turns a column in the main table into a sum cache through a join table.
       # A sum cache is a column in the main table with the sum of a column in the
-      # summed table for the matching id. Arguments:
+      # summed table for the matching id. The join table must have NOT NULL constraints
+      # on the foreign keys to the main table and summed table and a
+      # composite unique constraint on both foreign keys.
+      # 
+      # Arguments:
       # * opts : option hash, see module documentation, and below.
-      # * :main_table: name of table holding counter cache column
-      # * :main_table_id_column: column in main table matching main_table_fk_column in join_table
-      # * :sum_column: column in main table containing the sum cache
+      # * :main_table: name of table holding sum cache column
+      # * :main_table_id_column: primary key column in main table referenced by main_table_fk_column (default: :id)
+      # * :sum_column: column in main table containing the sum cache, must be NOT NULL and default to 0
       # * :summed_table: name of table being summed
-      # * :summed_table_id_column: column in summed_table matching summed_table_fk_column in join_table
-      # * :summed_column: column in summed_table being summed
+      # * :summed_table_id_column: primary key column in summed_table referenced by summed_table_fk_column (default: ;id)
+      # * :summed_column: column in summed_table being summed, must be NOT NULL
       # * :join_table: name of table which joins main_table with summed_table
-      # * :main_table_fk_column: column in join_table matching main_table_id_column in main_table
-      # * :summed_table_fk_column: column in join_table matching summed_table_id_column in summed_table
+      # * :main_table_fk_column: column in join_table referencing main_table_id_column, must be NOT NULL
+      # * :summed_table_fk_column: column in join_table referencing summed_table_id_column, must be NOT NULL
       def pgt_sum_through_many_cache(opts={})
         main_table = opts.fetch(:main_table)
-        main_table_id_column = opts.fetch(:main_table_id_column)
+        main_table_id_column = opts.fetch(:main_table_id_column, :id)
         sum_column = opts.fetch(:sum_column)
         summed_table = opts.fetch(:summed_table)
-        summed_table_id_column = opts.fetch(:summed_table_id_column)
+        summed_table_id_column = opts.fetch(:summed_table_id_column, :id)
         summed_column = opts.fetch(:summed_column)
         join_table = opts.fetch(:join_table)
         main_table_fk_column = opts.fetch(:main_table_fk_column)
@@ -184,10 +188,10 @@ module Sequel
           IF (TG_OP = 'UPDATE' AND NEW.#{summed_table_id_column} = OLD.#{summed_table_id_column}) THEN
             UPDATE #{main_table} SET #{sum_column} = #{sum_column} + NEW.#{summed_column} - OLD.#{summed_column} WHERE #{main_table_id_column} IN (SELECT #{main_table_fk_column} FROM #{join_table} WHERE #{summed_table_fk_column} = NEW.#{summed_table_id_column});
           ELSE
-            IF ((TG_OP = 'INSERT' OR TG_OP = 'UPDATE') AND NEW.#{summed_table_id_column} IS NOT NULL) THEN
+            IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
               UPDATE #{main_table} SET #{sum_column} = #{sum_column} + NEW.#{summed_column} WHERE #{main_table_id_column} IN (SELECT #{main_table_fk_column} FROM #{join_table} WHERE #{summed_table_fk_column} = NEW.#{summed_table_id_column});
             END IF;
-            IF ((TG_OP = 'DELETE' OR TG_OP = 'UPDATE') AND OLD.#{summed_table_id_column} IS NOT NULL) THEN
+            IF (TG_OP = 'DELETE' OR TG_OP = 'UPDATE') THEN
               UPDATE #{main_table} SET #{sum_column} = #{sum_column} - OLD.#{summed_column} WHERE #{main_table_id_column} IN (SELECT #{main_table_fk_column} FROM #{join_table} WHERE #{summed_table_fk_column} = OLD.#{summed_table_id_column});
             END IF;
           END IF;
@@ -200,17 +204,12 @@ module Sequel
 
         pgt_trigger(orig_join_table, join_trigger_name, join_function_name, [:insert, :delete, :update], <<-SQL)
         BEGIN
-          IF (TG_OP = 'UPDATE' AND NEW.#{main_table_fk_column} = OLD.#{main_table_fk_column} AND NEW.#{summed_table_fk_column} = OLD.#{summed_table_fk_column}) THEN
-          ELSE
+          IF (NOT (TG_OP = 'UPDATE' AND NEW.#{main_table_fk_column} = OLD.#{main_table_fk_column} AND NEW.#{summed_table_fk_column} = OLD.#{summed_table_fk_column})) THEN
             IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
-              IF (NEW.#{main_table_fk_column} IS NOT NULL AND NEW.#{summed_table_fk_column} IS NOT NULL) THEN
-                UPDATE #{main_table} SET #{sum_column} = #{sum_column} + (SELECT SUM(#{summed_column}) AS #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = NEW.#{summed_table_fk_column}) WHERE #{main_table_id_column} = NEW.#{main_table_fk_column};
-              END IF;
+              UPDATE #{main_table} SET #{sum_column} = #{sum_column} + (SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = NEW.#{summed_table_fk_column}) WHERE #{main_table_id_column} = NEW.#{main_table_fk_column};
             END IF;
             IF (TG_OP = 'DELETE' OR TG_OP = 'UPDATE') THEN
-              IF (OLD.#{main_table_fk_column} IS NOT NULL AND OLD.#{summed_table_fk_column} IS NOT NULL) THEN
-                UPDATE #{main_table} SET #{sum_column} = #{sum_column} - (SELECT SUM(#{summed_column}) AS #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = OLD.#{summed_table_fk_column}) WHERE #{main_table_id_column} = OLD.#{main_table_fk_column};
-              END IF;
+              UPDATE #{main_table} SET #{sum_column} = #{sum_column} - (SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = OLD.#{summed_table_fk_column}) WHERE #{main_table_id_column} = OLD.#{main_table_fk_column};
             END IF;
           END IF;
           IF (TG_OP = 'DELETE') THEN
