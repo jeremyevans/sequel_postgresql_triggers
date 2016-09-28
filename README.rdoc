@@ -60,6 +60,14 @@ backwards compatibility.
 
 == Triggers
 
+All of the public methods this extension adds take the following options
+in their opts hash:
+
+:function_name :: The name of the function to use.  This is important
+                  to specify if you want an easy way to drop the function.
+:trigger_name :: The name of the trigger to use.  This is important
+                 to specify if you want an easy way to drop the trigger.
+
 === Created At Columns - pgt_created_at
 
 pgt_created_at takes the table and column given and makes it so that
@@ -68,11 +76,21 @@ upon update, the column's value is always set to the previous value.
 This is sort of like an immutable column, but it doesn't bring up an
 error if you try to change it, it just ignores it.
 
+Arguments:
+table :: name of table
+column :: column in table that should be a created at timestamp column
+opts :: option hash
+
 === Updated At Columns - pgt_updated_at
 
 Similar to pgt_created_at, takes a table and column and makes it so
 that upon insertion, the column is set to CURRENT_TIMESTAMP. It
 differs that upon update, the column is also set to CURRENT_TIMESTAMP.
+
+Arguments:
+table :: name of table
+column :: column in table that should be a updated at timestamp column
+opts :: options hash
 
 === Counter Cache - pgt_counter_cache
 
@@ -82,6 +100,14 @@ or deleted from, records in the main table are updated with the
 count of the corresponding records in the counted table.  The counter
 cache column must have a default of 0 for this to work correctly.
 
+Arguments:
+main_table :: name of table holding counter cache column
+main_table_id_column :: column in main table matching counted_table_id_column in counted_table
+counter_column :: column in main table containing the counter cache
+counted_table :: name of table being counted
+counted_table_id_column :: column in counted_table matching main_table_id_column in main_table
+opts :: options hash
+
 === Sum Cache - pgt_sum_cache
 
 Similar to pgt_counter_cache, except instead of storing a count
@@ -89,11 +115,32 @@ of records in the main table, it stores the sum on one of the
 columns in summed table. The sum cache column must have a default
 of 0 for this to work correctly.
 
+Arguments:
+main_table :: name of table holding counter cache column
+main_table_id_column :: column in main table matching counted_table_id_column in counted_table
+sum_column :: column in main table containing the sum cache
+summed_table :: name of table being summed
+summed_table_id_column :: column in summed_table matching main_table_id_column in main_table
+summed_column :: column in summed_table being summed
+opts :: options hash
+
 === Sum Through Many Cache - pgt_sum_through_many_cache
 
 Similar to pgt_sum_cache, except instead of a one-to-many relationship,
 it supports a many-to-many relationship with a single join table. The
 sum cache column must have a default of 0 for this to work correctly.
+
+This takes a single options hash argument, supporting the following options
+in addition to the standard options:
+:main_table :: name of table holding sum cache column
+:main_table_id_column :: primary key column in main table referenced by main_table_fk_column (default: :id)
+:sum_column :: column in main table containing the sum cache, must be NOT NULL and default to 0
+:summed_table :: name of table being summed
+:summed_table_id_column :: primary key column in summed_table referenced by summed_table_fk_column (default: :id)
+:summed_column :: column in summed_table being summed, must be NOT NULL
+:join_table :: name of table which joins main_table with summed_table
+:main_table_fk_column :: column in join_table referencing main_table_id_column, must be NOT NULL
+:summed_table_fk_column :: column in join_table referencing summed_table_id_column, must be NOT NULL
 
 === Immutable Columns - pgt_immutable
 
@@ -101,11 +148,22 @@ This takes a table name and one or more column names, and adds
 an update trigger that raises an exception if you try to modify
 the value of any of the columns.
 
+Arguments:
+table :: name of table
+*columns :: All columns in the table that should be immutable.  Can end with options hash.
+
 === Touch Propagation - pgt_touch
 
 This takes several arguments (again, see the RDoc) and sets up a
 trigger that watches one table for changes, and touches timestamps
 of related rows in a separate table.
+
+Arguments:
+main_table :: name of table that is being watched for changes
+touch_table :: name of table that needs to be touched
+column :: name of timestamp column to be touched
+expr :: hash or array that represents the columns that define the relationship
+opts :: options hash
 
 == License
 

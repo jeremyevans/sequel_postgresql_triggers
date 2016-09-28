@@ -1,25 +1,10 @@
 # The pg_triggers extension adds support to the Database instance for easily
 # creating triggers and trigger returning functions for common needs.
+
 #
-# All of the public methods this extension adds take the following options
-# in their opts hash:
-#
-# :function_name :: The name of the function to use.  This is important
-#                   to specify if you want an easy way to drop the function.
-# :trigger_name :: The name of the trigger to use.  This is important
-#                  to specify if you want an easy way to drop the trigger.
 module Sequel
   module Postgres
     PGT_DEFINE = proc do
-      # Turns a column in the main table into a counter cache.  A counter cache is a
-      # column in the main table with the number of rows in the counted table
-      # for the matching id. Arguments:
-      # * main_table : name of table holding counter cache column
-      # * main_table_id_column : column in main table matching counted_table_id_column in counted_table
-      # * counter_column : column in main table containing the counter cache
-      # * counted_table : name of table being counted
-      # * counted_table_id_column : column in counted_table matching main_table_id_column in main_table
-      # * opts : option hash, see module documentation
       def pgt_counter_cache(main_table, main_table_id_column, counter_column, counted_table, counted_table_id_column, opts={})
         trigger_name = opts[:trigger_name] || "pgt_cc_#{main_table}__#{main_table_id_column}__#{counter_column}__#{counted_table_id_column}"
         function_name = opts[:function_name] || "pgt_cc_#{main_table}__#{main_table_id_column}__#{counter_column}__#{counted_table}__#{counted_table_id_column}"
@@ -50,12 +35,6 @@ module Sequel
         SQL
       end
 
-      # Turns a column in the table into a created at timestamp column, which
-      # always contains the timestamp the record was inserted into the database.
-      # Arguments:
-      # * table : name of table
-      # * column : column in table that should be a created at timestamp column
-      # * opts : option hash, see module documentation
       def pgt_created_at(table, column, opts={})
         trigger_name = opts[:trigger_name] || "pgt_ca_#{column}"
         function_name = opts[:function_name] || "pgt_ca_#{table}__#{column}"
@@ -72,11 +51,6 @@ module Sequel
         SQL
       end
 
-      # Makes all given columns in the given table immutable, so an exception
-      # is raised if there is an attempt to modify the value when updating the
-      # record. Arguments:
-      # * table : name of table
-      # * columns : All columns in the table that should be immutable.  Can end with a hash of options, see module documentation.
       def pgt_immutable(table, *columns)
         opts = columns.last.is_a?(Hash) ? columns.pop : {}
         trigger_name = opts[:trigger_name] || "pgt_im_#{columns.join('__')}"
@@ -93,16 +67,6 @@ module Sequel
         pgt_trigger(table, trigger_name, function_name, :update, "BEGIN #{ifs} RETURN NEW; END;")
       end
 
-      # Turns a column in the main table into a sum cache.  A sum cache is a
-      # column in the main table with the sum of a column in the summed table
-      # for the matching id. Arguments:
-      # * main_table : name of table holding counter cache column
-      # * main_table_id_column : column in main table matching counted_table_id_column in counted_table
-      # * sum_column : column in main table containing the sum cache
-      # * summed_table : name of table being summed
-      # * summed_table_id_column : column in summed_table matching main_table_id_column in main_table
-      # * summed_column : column in summed_table being summed
-      # * opts : option hash, see module documentation
       def pgt_sum_cache(main_table, main_table_id_column, sum_column, summed_table, summed_table_id_column, summed_column, opts={})
         trigger_name = opts[:trigger_name] || "pgt_sc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}"
         function_name = opts[:function_name] || "pgt_sc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table}__#{summed_table_id_column}__#{summed_column}"
@@ -133,23 +97,6 @@ module Sequel
         SQL
       end
 
-      # Turns a column in the main table into a sum cache through a join table.
-      # A sum cache is a column in the main table with the sum of a column in the
-      # summed table for the matching id. The join table must have NOT NULL constraints
-      # on the foreign keys to the main table and summed table and a
-      # composite unique constraint on both foreign keys.
-      # 
-      # Arguments:
-      # * opts : option hash, see module documentation, and below.
-      # * :main_table: name of table holding sum cache column
-      # * :main_table_id_column: primary key column in main table referenced by main_table_fk_column (default: :id)
-      # * :sum_column: column in main table containing the sum cache, must be NOT NULL and default to 0
-      # * :summed_table: name of table being summed
-      # * :summed_table_id_column: primary key column in summed_table referenced by summed_table_fk_column (default: ;id)
-      # * :summed_column: column in summed_table being summed, must be NOT NULL
-      # * :join_table: name of table which joins main_table with summed_table
-      # * :main_table_fk_column: column in join_table referencing main_table_id_column, must be NOT NULL
-      # * :summed_table_fk_column: column in join_table referencing summed_table_id_column, must be NOT NULL
       def pgt_sum_through_many_cache(opts={})
         main_table = opts.fetch(:main_table)
         main_table_id_column = opts.fetch(:main_table_id_column, :id)
@@ -216,14 +163,6 @@ module Sequel
         SQL
       end
 
-      # When rows in a table are updated, touches a timestamp of related rows
-      # in another table.
-      # Arguments:
-      # * main_table : name of table that is being watched for changes
-      # * touch_table : name of table that needs to be touched
-      # * column : name of timestamp column to be touched
-      # * expr : hash or array that represents the columns that define the relationship
-      # * opts : option hash, see module documentation
       def pgt_touch(main_table, touch_table, column, expr, opts={})
         trigger_name = opts[:trigger_name] || "pgt_t_#{main_table}__#{touch_table}"
         function_name = opts[:function_name] || "pgt_t_#{main_table}__#{touch_table}"
@@ -256,12 +195,6 @@ module Sequel
         pgt_trigger(main_table, trigger_name, function_name, [:insert, :delete, :update], sql, :after=>true)
       end
 
-      # Turns a column in the table into a updated at timestamp column, which
-      # always contains the timestamp the record was inserted or last updated.
-      # Arguments:
-      # * table : name of table
-      # * column : column in table that should be a updated at timestamp column
-      # * opts : option hash, see module documentation
       def pgt_updated_at(table, column, opts={})
         trigger_name = opts[:trigger_name] || "pgt_ua_#{column}"
         function_name = opts[:function_name] || "pgt_ua_#{table}__#{column}"
