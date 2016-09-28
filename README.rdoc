@@ -6,10 +6,44 @@ a user to easily handle the following types of columns:
 * Timestamp Columns (Created At/Updated At)
 * Counter/Sum Caches
 * Immutable Columns
+* Touch Propogation
 
 It handles these internally to the database via triggers, so even if
 other applications access the database (without using Sequel), things
 will still work (unless the database superuser disables triggers).
+
+To use this, after installing the gem, you first need to require the
+library:
+
+  require 'sequel_postgresql_triggers'
+
+Then you can call the pgt_* methods it adds on your Sequel::Database
+object:
+
+  DB.pg_created_at(:table_name, :created_at)
+
+Most commonly, this is used in migrations, with a structure similar
+to:
+
+  require 'sequel_postgresql_triggers'
+
+  Sequel.migration do
+    up do
+      pgt_created_at(:table_name,
+                     :created_at,
+                     :function_name=>:table_name_set_created_at,
+                     :trigger_name=>:set_created_at)
+    end
+
+    down do
+      drop_trigger(:table_name, :set_created_at)
+      drop_function(:table_name_set_created_at)
+    end
+  end
+
+Note that you only need to require this library when defining the
+triggers, you don't need to require this library when your
+application is running.
 
 To use any of these methods before PostgreSQL 9.0, you have to add
 the plpgsql procedural language to PostgreSQL, which you can do with:

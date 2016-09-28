@@ -3,7 +3,7 @@ require "rake/clean"
 
 CLEAN.include ["*.gem", "rdoc"]
 RDOC_OPTS = ["--quiet", "--line-numbers", "--inline-source", '--title', \
-  'Sequel PostgreSQL Triggers: Database enforced timestamps, immutable columns, and counter/sum caches', '--main', 'README']
+  'Sequel PostgreSQL Triggers: Database enforced timestamps, immutable columns, and counter/sum caches', '--main', 'README.rdoc']
 
 rdoc_task_class = begin
   require "rdoc/task"
@@ -17,7 +17,7 @@ end
 rdoc_task_class.new do |rdoc|
   rdoc.rdoc_dir = "rdoc"
   rdoc.options += RDOC_OPTS
-  rdoc.rdoc_files.add %w"README LICENSE lib/sequel_postgresql_triggers.rb"
+  rdoc.rdoc_files.add %w"README.rdoc MIT-LICENSE lib/sequel_postgresql_triggers.rb"
 end
 
 desc "Run specs"
