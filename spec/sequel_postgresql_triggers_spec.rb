@@ -7,17 +7,12 @@ require 'minitest/autorun'
 DB = Sequel.connect(ENV['PGT_SPEC_DB']||'postgres:///spgt_test?user=postgres')
 
 $:.unshift(File.join(File.dirname(File.dirname(File.expand_path(__FILE__))), 'lib'))
-require 'sequel_postgresql_triggers'
-
-if defined?(RSpec)
-  require 'rspec/version'
-  if RSpec::Version::STRING >= '2.11.0'
-    RSpec.configure do |config|
-      config.expect_with :rspec do |c|
-        c.syntax = :should
-      end
-    end
-  end
+if ENV['PGT_GLOBAL'] == '1'
+  puts "Running specs with global modification"
+  require 'sequel_postgresql_triggers'
+else
+  puts "Running specs with extension"
+  DB.extension :pg_triggers 
 end
 
 describe "PostgreSQL Triggers" do

@@ -12,23 +12,23 @@ It handles these internally to the database via triggers, so even if
 other applications access the database (without using Sequel), things
 will still work (unless the database superuser disables triggers).
 
-To use this, after installing the gem, you first need to require the
-library:
+To use this, load the +pg_triggers+ extension into the Sequel::Database
+object:
 
-  require 'sequel_postgresql_triggers'
+  DB.extension :pg_triggers
 
 Then you can call the pgt_* methods it adds on your Sequel::Database
 object:
 
-  DB.pg_created_at(:table_name, :created_at)
+  DB.pgt_created_at(:table_name, :created_at)
 
 Most commonly, this is used in migrations, with a structure similar
 to:
 
-  require 'sequel_postgresql_triggers'
-
   Sequel.migration do
     up do
+      extension :pg_triggers
+
       pgt_created_at(:table_name,
                      :created_at,
                      :function_name=>:table_name_set_created_at,
@@ -41,14 +41,22 @@ to:
     end
   end
 
-Note that you only need to require this library when defining the
-triggers, you don't need to require this library when your
+Note that you only need to load this extension when defining the
+triggers, you don't need to load this extension when your
 application is running.
 
 To use any of these methods before PostgreSQL 9.0, you have to add
 the plpgsql procedural language to PostgreSQL, which you can do with:
 
   DB.create_language(:plpgsql)
+
+If you want to load this extension globally for all PostgreSQL
+databases, you can do:
+
+  require 'sequel_postgresql_triggers'
+
+However, global modification is discouraged and only remains for
+backwards compatibility.
 
 == Triggers
 

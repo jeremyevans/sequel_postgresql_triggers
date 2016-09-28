@@ -17,15 +17,26 @@ end
 rdoc_task_class.new do |rdoc|
   rdoc.rdoc_dir = "rdoc"
   rdoc.options += RDOC_OPTS
-  rdoc.rdoc_files.add %w"README.rdoc MIT-LICENSE lib/sequel_postgresql_triggers.rb"
+  rdoc.rdoc_files.add %w"README.rdoc MIT-LICENSE lib/sequel_postgresql_triggers.rb lib/sequel/extensions/pg_triggers.rb"
 end
 
-desc "Run specs"
+desc "Run specs with extension"
 task :spec do
   sh "#{FileUtils::RUBY} -rubygems -I lib spec/sequel_postgresql_triggers_spec.rb"
 end
 
-task :default => :spec
+desc "Run specs with global modification"
+task :spec_global do
+  begin
+    ENV['PGT_GLOBAL'] = '1'
+    sh "#{FileUtils::RUBY} -rubygems -I lib spec/sequel_postgresql_triggers_spec.rb"
+  ensure
+    ENV.delete('PGT_GLOBAL')
+  end
+end
+
+desc "Run all specs"
+task :default => [:spec, :spec_global]
 
 desc "Package sequel_postgresql_triggers"
 task :package do
