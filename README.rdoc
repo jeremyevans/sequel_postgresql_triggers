@@ -139,6 +139,8 @@ in addition to the standard options:
 :summed_table_id_column :: primary key column in summed_table referenced by summed_table_fk_column (default: :id)
 :summed_column :: column in summed_table being summed, must be NOT NULL
 :join_table :: name of table which joins main_table with summed_table
+:join_trigger_name :: name of trigger for join table
+:join_function_name :: name of trigger function for join table
 :main_table_fk_column :: column in join_table referencing main_table_id_column, must be NOT NULL
 :summed_table_fk_column :: column in join_table referencing summed_table_id_column, must be NOT NULL
 
