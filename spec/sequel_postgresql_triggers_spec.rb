@@ -189,6 +189,62 @@ describe "PostgreSQL Triggers" do
     end
   end
 
+  describe "PostgreSQL Sum Cache Trigger with arbitrary expression" do
+    before do
+      DB.create_table(:accounts){integer :id; integer :nonzero_entries_count, :default=>0}
+      DB.create_table(:entries){integer :id; integer :account_id; integer :amount}
+      DB.pgt_sum_cache(:accounts, :id, :nonzero_entries_count, :entries, :account_id, Sequel.case({0=>0}, 1, :amount), :function_name=>:spgt_sum_cache)
+      DB[:accounts] << {:id=>1}
+      DB[:accounts] << {:id=>2}
+    end
+
+    after do
+      DB.drop_table(:entries, :accounts)
+      DB.drop_function(:spgt_sum_cache)
+    end
+
+    it "Should modify sum cache when adding, updating, or removing records" do
+      DB[:accounts].order(:id).select_map(:nonzero_entries_count).must_equal [0, 0]
+
+      DB[:entries] << {:id=>1, :account_id=>1, :amount=>100}
+      DB[:accounts].order(:id).select_map(:nonzero_entries_count).must_equal [1, 0]
+
+      DB[:entries] << {:id=>2, :account_id=>1, :amount=>200}
+      DB[:accounts].order(:id).select_map(:nonzero_entries_count).must_equal [2, 0]
+
+      DB[:entries] << {:id=>3, :account_id=>nil, :amount=>500}
+      DB[:accounts].order(:id).select_map(:nonzero_entries_count).must_equal [2, 0]
+
+      DB[:entries].where(:id=>3).update(:account_id=>2)
+      DB[:accounts].order(:id).select_map(:nonzero_entries_count).must_equal [2, 1]
+
+      DB[:entries].exclude(:id=>2).update(:amount=>Sequel.*(:amount, 2))
+      DB[:accounts].order(:id).select_map(:nonzero_entries_count).must_equal [2, 1]
+
+      DB[:entries].where(:id=>2).update(:account_id=>2)
+      DB[:accounts].order(:id).select_map(:nonzero_entries_count).must_equal [1, 2]
+
+      DB[:entries].where(:id=>2).update(:account_id=>nil)
+      DB[:accounts].order(:id).select_map(:nonzero_entries_count).must_equal [1, 1]
+
+      DB[:entries].where(:id=>2).update(:id=>4)
+      DB[:accounts].order(:id).select_map(:nonzero_entries_count).must_equal [1, 1]
+
+      DB[:entries].where(:id=>4).update(:account_id=>2)
+      DB[:accounts].order(:id).select_map(:nonzero_entries_count).must_equal [1, 2]
+
+      DB[:entries].where(:id=>4).update(:account_id=>nil)
+      DB[:accounts].order(:id).select_map(:nonzero_entries_count).must_equal [1, 1]
+
+      DB[:entries].filter(:id=>4).delete
+      DB[:accounts].order(:id).select_map(:nonzero_entries_count).must_equal [1, 1]
+
+      DB[:entries].delete
+      DB[:accounts].order(:id).select_map(:nonzero_entries_count).must_equal [0, 0]
+    end
+  end
+
+
   describe "PostgreSQL Sum Through Many Cache Trigger" do
     before do
       DB.create_table(:parents){primary_key :id; integer :balance, :default=>0, :null=>false}

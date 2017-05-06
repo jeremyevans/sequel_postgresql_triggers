@@ -73,20 +73,23 @@ module Sequel
 
         table = quote_schema_table(main_table)
         id_column = quote_identifier(summed_table_id_column)
-        summed_column = quote_identifier(summed_column)
+
+        # Chokes on "TABLE"."column". Must substitute with TABLE."column"
+        new_table_summed_column = DB.literal(Sequel.deep_qualify(:NEW, summed_column)).gsub("\"NEW\"", "NEW")
+        old_table_summed_column = DB.literal(Sequel.deep_qualify(:OLD, summed_column)).gsub("\"OLD\"", "OLD")
         main_column = quote_identifier(main_table_id_column)
         sum_column = quote_identifier(sum_column)
 
         pgt_trigger(summed_table, trigger_name, function_name, [:insert, :delete, :update], <<-SQL)
         BEGIN
           IF (TG_OP = 'UPDATE' AND NEW.#{id_column} = OLD.#{id_column}) THEN
-            UPDATE #{table} SET #{sum_column} = #{sum_column} + NEW.#{summed_column} - OLD.#{summed_column} WHERE #{main_column} = NEW.#{id_column};
+            UPDATE #{table} SET #{sum_column} = #{sum_column} + #{new_table_summed_column} - #{old_table_summed_column} WHERE #{main_column} = NEW.#{id_column};
           ELSE
             IF ((TG_OP = 'INSERT' OR TG_OP = 'UPDATE') AND NEW.#{id_column} IS NOT NULL) THEN
-              UPDATE #{table} SET #{sum_column} = #{sum_column} + NEW.#{summed_column} WHERE #{main_column} = NEW.#{id_column};
+              UPDATE #{table} SET #{sum_column} = #{sum_column} + #{new_table_summed_column} WHERE #{main_column} = NEW.#{id_column};
             END IF;
             IF ((TG_OP = 'DELETE' OR TG_OP = 'UPDATE') AND OLD.#{id_column} IS NOT NULL) THEN
-              UPDATE #{table} SET #{sum_column} = #{sum_column} - OLD.#{summed_column} WHERE #{main_column} = OLD.#{id_column};
+              UPDATE #{table} SET #{sum_column} = #{sum_column} - #{old_table_summed_column} WHERE #{main_column} = OLD.#{id_column};
             END IF;
           END IF;
           IF (TG_OP = 'DELETE') THEN
