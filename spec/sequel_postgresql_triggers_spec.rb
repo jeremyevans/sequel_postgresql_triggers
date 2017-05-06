@@ -7,17 +7,12 @@ require 'minitest/autorun'
 DB = Sequel.connect(ENV['PGT_SPEC_DB']||'postgres:///spgt_test?user=postgres')
 
 $:.unshift(File.join(File.dirname(File.dirname(File.expand_path(__FILE__))), 'lib'))
-require 'sequel_postgresql_triggers'
-
-if defined?(RSpec)
-  require 'rspec/version'
-  if RSpec::Version::STRING >= '2.11.0'
-    RSpec.configure do |config|
-      config.expect_with :rspec do |c|
-        c.syntax = :should
-      end
-    end
-  end
+if ENV['PGT_GLOBAL'] == '1'
+  puts "Running specs with global modification"
+  require 'sequel_postgresql_triggers'
+else
+  puts "Running specs with extension"
+  DB.extension :pg_triggers 
 end
 
 describe "PostgreSQL Triggers" do
@@ -32,13 +27,14 @@ describe "PostgreSQL Triggers" do
     before do
       DB.create_table(:accounts){integer :id; integer :num_entries, :default=>0}
       DB.create_table(:entries){integer :id; integer :account_id}
-      DB.pgt_counter_cache(:accounts, :id, :num_entries, :entries, :account_id)
+      DB.pgt_counter_cache(:accounts, :id, :num_entries, :entries, :account_id, :function_name=>:spgt_counter_cache)
       DB[:accounts] << {:id=>1}
       DB[:accounts] << {:id=>2}
     end
 
     after do
       DB.drop_table(:entries, :accounts)
+      DB.drop_function(:spgt_counter_cache)
     end
 
     it "Should modify counter cache when adding or removing records" do
@@ -82,11 +78,12 @@ describe "PostgreSQL Triggers" do
   describe "PostgreSQL Created At Trigger" do
     before do
       DB.create_table(:accounts){integer :id; timestamp :added_on}
-      DB.pgt_created_at(:accounts, :added_on)
+      DB.pgt_created_at(:accounts, :added_on, :function_name=>:spgt_created_at)
     end
 
     after do
       DB.drop_table(:accounts)
+      DB.drop_function(:spgt_created_at)
     end
 
     it "Should set the column upon insertion and ignore modifications afterward" do
@@ -106,12 +103,13 @@ describe "PostgreSQL Triggers" do
   describe "PostgreSQL Immutable Trigger" do
     before do
       DB.create_table(:accounts){integer :id; integer :balance, :default=>0}
-      DB.pgt_immutable(:accounts, :balance)
+      DB.pgt_immutable(:accounts, :balance, :function_name=>:spgt_immutable)
       DB[:accounts] << {:id=>1}
     end
 
     after do
       DB.drop_table(:accounts)
+      DB.drop_function(:spgt_immutable)
     end
 
     it "Should allow modifying columns not marked as immutable" do
@@ -140,13 +138,14 @@ describe "PostgreSQL Triggers" do
     before do
       DB.create_table(:accounts){integer :id; integer :balance, :default=>0}
       DB.create_table(:entries){integer :id; integer :account_id; integer :amount}
-      DB.pgt_sum_cache(:accounts, :id, :balance, :entries, :account_id, :amount)
+      DB.pgt_sum_cache(:accounts, :id, :balance, :entries, :account_id, :amount, :function_name=>:spgt_sum_cache)
       DB[:accounts] << {:id=>1}
       DB[:accounts] << {:id=>2}
     end
 
     after do
       DB.drop_table(:entries, :accounts)
+      DB.drop_function(:spgt_sum_cache)
     end
 
     it "Should modify sum cache when adding, updating, or removing records" do
@@ -190,14 +189,108 @@ describe "PostgreSQL Triggers" do
     end
   end
 
+  describe "PostgreSQL Sum Through Many Cache Trigger" do
+    before do
+      DB.create_table(:parents){primary_key :id; integer :balance, :default=>0, :null=>false}
+      DB.create_table(:children){primary_key :id; integer :amount, :null=>false}
+      DB.create_table(:links){integer :parent_id, :null=>false; integer :child_id, :null=>false; unique [:parent_id, :child_id]}
+      DB.pgt_sum_through_many_cache(
+        :main_table=>:parents,
+        :sum_column=>:balance,
+        :summed_table=>:children,
+        :summed_column=>:amount,
+        :join_table=>:links,
+        :main_table_fk_column=>:parent_id,
+        :summed_table_fk_column=>:child_id,
+        :function_name=>:spgt_stm_cache,
+        :join_function_name=>:spgt_stm_cache_join
+      )
+      DB[:parents] << {:id=>1}
+      DB[:parents] << {:id=>2}
+    end
+
+    after do
+      DB.drop_table(:links, :parents, :children)
+      DB.drop_function(:spgt_stm_cache)
+      DB.drop_function(:spgt_stm_cache_join)
+    end
+
+    it "Should modify sum cache when adding, updating, or removing records" do
+      DB[:parents].order(:id).select_map(:balance).must_equal [0, 0]
+
+      DB[:children] << {:id=>1, :amount=>100}
+      DB[:links] << {:parent_id=>1, :child_id=>1}
+      DB[:parents].order(:id).select_map(:balance).must_equal [100, 0]
+
+      DB[:children] << {:id=>2, :amount=>200}
+      DB[:links] << {:parent_id=>1, :child_id=>2}
+      DB[:parents].order(:id).select_map(:balance).must_equal [300, 0]
+
+      DB[:children] << {:id=>3, :amount=>500}
+      DB[:parents].order(:id).select_map(:balance).must_equal [300, 0]
+      DB[:links] << {:parent_id=>2, :child_id=>3}
+      DB[:parents].order(:id).select_map(:balance).must_equal [300, 500]
+
+      DB[:links].where(:parent_id=>2, :child_id=>3).update(:parent_id=>1)
+      DB[:parents].order(:id).select_map(:balance).must_equal [800, 0]
+
+      DB[:children] << {:id=>4, :amount=>400}
+      DB[:links].where(:parent_id=>1, :child_id=>3).update(:child_id=>4)
+      DB[:parents].order(:id).select_map(:balance).must_equal [700, 0]
+
+      DB[:links].where(:parent_id=>1, :child_id=>4).update(:parent_id=>2, :child_id=>3)
+      DB[:parents].order(:id).select_map(:balance).must_equal [300, 500]
+
+      DB[:children].exclude(:id=>2).update(:amount=>Sequel.*(:amount, 2))
+      DB[:parents].order(:id).select_map(:balance).must_equal [400, 1000]
+
+      DB[:links].where(:parent_id=>1, :child_id=>2).update(:parent_id=>2)
+      DB[:parents].order(:id).select_map(:balance).must_equal [200, 1200]
+
+      DB[:links].where(:parent_id=>2, :child_id=>2).update(:parent_id=>1)
+      DB[:parents].order(:id).select_map(:balance).must_equal [400, 1000]
+
+      DB[:links].where(:parent_id=>1, :child_id=>2).update(:child_id=>3)
+      DB[:parents].order(:id).select_map(:balance).must_equal [1200, 1000]
+
+      DB[:links] << {:parent_id=>2, :child_id=>4}
+      DB[:parents].order(:id).select_map(:balance).must_equal [1200, 1800]
+
+      DB[:children].filter(:id=>4).delete
+      DB[:parents].order(:id).select_map(:balance).must_equal [1200, 1000]
+
+      DB[:links].filter(:parent_id=>1, :child_id=>1).delete
+      DB[:parents].order(:id).select_map(:balance).must_equal [1000, 1000]
+
+      DB[:children] << {:id=>4, :amount=>400}
+      DB[:parents].order(:id).select_map(:balance).must_equal [1000, 1400]
+
+      DB[:children].delete
+      DB[:parents].order(:id).select_map(:balance).must_equal [0, 0]
+
+      DB[:children].multi_insert([{:id=>2, :amount=>200}, {:id=>1, :amount=>200}, {:id=>3, :amount=>1000}, {:id=>4, :amount=>400}])
+      DB[:parents].order(:id).select_map(:balance).must_equal [1000, 1400]
+
+      DB[:links].where(:child_id=>3).update(:child_id=>2)
+      DB[:parents].order(:id).select_map(:balance).must_equal [200, 600]
+
+      DB[:children].update(:amount=>10)
+      DB[:parents].order(:id).select_map(:balance).must_equal [10, 20]
+
+      DB[:links].delete
+      DB[:parents].order(:id).select_map(:balance).must_equal [0, 0]
+    end
+  end
+
   describe "PostgreSQL Updated At Trigger" do
     before do
       DB.create_table(:accounts){integer :id; timestamp :changed_on}
-      DB.pgt_updated_at(:accounts, :changed_on)
+      DB.pgt_updated_at(:accounts, :changed_on, :function_name=>:spgt_updated_at)
     end
 
     after do
       DB.drop_table(:accounts)
+      DB.drop_function(:spgt_updated_at)
     end
 
     it "Should set the column always to the current timestamp" do
@@ -220,10 +313,12 @@ describe "PostgreSQL Triggers" do
 
     after do
       DB.drop_table(:children, :parents)
+      DB.drop_function(:spgt_touch)
+      DB.drop_function(:spgt_touch2) if @spgt_touch2
     end
 
     it "Should update the timestamp column of the related table when adding, updating or removing records" do
-      DB.pgt_touch(:children, :parents, :changed_on, :id1=>:parent_id1)
+      DB.pgt_touch(:children, :parents, :changed_on, {:id1=>:parent_id1}, :function_name=>:spgt_touch)
       d = Date.today
       d30 = Date.today - 30
       DB[:parents] << {:id1=>1, :changed_on=>d30}
@@ -263,7 +358,7 @@ describe "PostgreSQL Triggers" do
     end
 
     it "Should update the timestamp column of the related table when there is a composite foreign key" do
-      DB.pgt_touch(:children, :parents, :changed_on, :id1=>:parent_id1, :id2=>:parent_id2)
+      DB.pgt_touch(:children, :parents, :changed_on, {:id1=>:parent_id1, :id2=>:parent_id2}, :function_name=>:spgt_touch)
       DB[:parents] << {:id1=>1, :id2=>2, :changed_on=>Date.today - 30}
       DB[:children] << {:id=>1, :parent_id1=>1, :parent_id2=>2}
       DB[:parents].get(:changed_on).strftime('%F').must_equal Date.today.strftime('%F')
@@ -276,8 +371,9 @@ describe "PostgreSQL Triggers" do
     end
 
     it "Should update timestamps correctly when two tables touch each other" do
-      DB.pgt_touch(:children, :parents, :changed_on, :id1=>:parent_id1)
-      DB.pgt_touch(:parents, :children, :changed_on, :id=>:child_id)
+      DB.pgt_touch(:children, :parents, :changed_on, {:id1=>:parent_id1}, :function_name=>:spgt_touch)
+      @spgt_touch2 = true
+      DB.pgt_touch(:parents, :children, :changed_on, {:id=>:child_id}, :function_name=>:spgt_touch2)
       DB[:parents] << {:id1=>1, :child_id=>1, :changed_on=>Date.today - 30}
       DB[:children] << {:id=>1, :parent_id1=>1, :changed_on=>Date.today - 30}
       DB[:parents].get(:changed_on).strftime('%F').must_equal Date.today.strftime('%F')
@@ -296,7 +392,7 @@ describe "PostgreSQL Triggers" do
     end
 
     it "Should update the timestamp on the related table if that timestamp is initially NULL" do
-      DB.pgt_touch(:children, :parents, :changed_on, :id1=>:parent_id1)
+      DB.pgt_touch(:children, :parents, :changed_on, {:id1=>:parent_id1}, :function_name=>:spgt_touch)
       DB[:parents] << {:id1=>1, :changed_on=>nil}
       DB[:children] << {:id=>1, :parent_id1=>1}
       changed_on = DB[:parents].get(:changed_on)
