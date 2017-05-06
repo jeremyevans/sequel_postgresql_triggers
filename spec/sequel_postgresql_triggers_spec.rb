@@ -338,6 +338,99 @@ describe "PostgreSQL Triggers" do
     end
   end
 
+  describe "PostgreSQL Sum Through Many Cache Trigger with arbitrary expression" do
+    before do
+      DB.create_table(:parents){primary_key :id; integer :nonzero_entries_count, :default=>0, :null=>false}
+      DB.create_table(:children){primary_key :id; integer :amount, :null=>false}
+      DB.create_table(:links){integer :parent_id, :null=>false; integer :child_id, :null=>false; unique [:parent_id, :child_id]}
+      DB.pgt_sum_through_many_cache(
+        :main_table=>:parents,
+        :sum_column=>:nonzero_entries_count,
+        :summed_table=>:children,
+        :summed_column=>Sequel.case({0=>0}, 1, :amount),
+        :join_table=>:links,
+        :main_table_fk_column=>:parent_id,
+        :summed_table_fk_column=>:child_id,
+        :function_name=>:spgt_stm_cache,
+        :join_function_name=>:spgt_stm_cache_join
+      )
+      DB[:parents] << {:id=>1}
+      DB[:parents] << {:id=>2}
+    end
+
+    after do
+      DB.drop_table(:links, :parents, :children)
+      DB.drop_function(:spgt_stm_cache)
+      DB.drop_function(:spgt_stm_cache_join)
+    end
+
+    it "Should modify sum cache when adding, updating, or removing records" do
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [0, 0]
+
+      DB[:children] << {:id=>1, :amount=>100}
+      DB[:links] << {:parent_id=>1, :child_id=>1}
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [1, 0]
+
+      DB[:children] << {:id=>2, :amount=>200}
+      DB[:links] << {:parent_id=>1, :child_id=>2}
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [2, 0]
+
+      DB[:children] << {:id=>3, :amount=>500}
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [2, 0]
+      DB[:links] << {:parent_id=>2, :child_id=>3}
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [2, 1]
+
+      DB[:links].where(:parent_id=>2, :child_id=>3).update(:parent_id=>1)
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [3, 0]
+
+      DB[:children] << {:id=>4, :amount=>400}
+      DB[:links].where(:parent_id=>1, :child_id=>3).update(:child_id=>4)
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [3, 0]
+
+      DB[:links].where(:parent_id=>1, :child_id=>4).update(:parent_id=>2, :child_id=>3)
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [2, 1]
+
+      DB[:children].exclude(:id=>2).update(:amount=>Sequel.*(:amount, 2))
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [2, 1]
+
+      DB[:links].where(:parent_id=>1, :child_id=>2).update(:parent_id=>2)
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [1, 2]
+
+      DB[:links].where(:parent_id=>2, :child_id=>2).update(:parent_id=>1)
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [2, 1]
+
+      DB[:links].where(:parent_id=>1, :child_id=>2).update(:child_id=>3)
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [2, 1]
+
+      DB[:links] << {:parent_id=>2, :child_id=>4}
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [2, 2]
+
+      DB[:children].filter(:id=>4).delete
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [2, 1]
+
+      DB[:links].filter(:parent_id=>1, :child_id=>1).delete
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [1, 1]
+
+      DB[:children] << {:id=>4, :amount=>400}
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [1, 2]
+
+      DB[:children].delete
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [0, 0]
+
+      DB[:children].multi_insert([{:id=>2, :amount=>200}, {:id=>1, :amount=>200}, {:id=>3, :amount=>1000}, {:id=>4, :amount=>400}])
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [1, 2]
+
+      DB[:links].where(:child_id=>3).update(:child_id=>2)
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [1, 2]
+
+      DB[:children].update(:amount=>10)
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [1, 2]
+
+      DB[:links].delete
+      DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [0, 0]
+    end
+  end
+
   describe "PostgreSQL Updated At Trigger" do
     before do
       DB.create_table(:accounts){integer :id; timestamp :changed_on}

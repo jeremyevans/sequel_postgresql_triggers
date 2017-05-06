@@ -111,9 +111,9 @@ module Sequel
         main_table_fk_column = opts.fetch(:main_table_fk_column)
         summed_table_fk_column = opts.fetch(:summed_table_fk_column)
 
-        trigger_name = opts[:trigger_name] || "pgt_stmc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}__#{summed_column}__#{main_table_fk_column}__#{summed_table_fk_column}"
+        trigger_name = opts[:trigger_name] || "pgt_stmc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}__#{main_table_fk_column}__#{summed_table_fk_column}"
         function_name = opts[:function_name] || "pgt_stmc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table}__#{summed_table_id_column}__#{summed_column}__#{join_table}__#{main_table_fk_column}__#{summed_table_fk_column}"
-        join_trigger_name = opts[:join_trigger_name] || "pgt_stmc_join_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}__#{summed_column}__#{main_table_fk_column}__#{summed_table_fk_column}"
+        join_trigger_name = opts[:join_trigger_name] || "pgt_stmc_join_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}__#{main_table_fk_column}__#{summed_table_fk_column}"
         join_function_name = opts[:join_function_name] || "pgt_stmc_join_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table}__#{summed_table_id_column}__#{summed_column}__#{join_table}__#{main_table_fk_column}__#{summed_table_fk_column}"
 
         orig_summed_table = summed_table
@@ -122,9 +122,14 @@ module Sequel
         main_table = quote_schema_table(main_table)
         main_table_id_column = quote_schema_table(main_table_id_column)
         sum_column = quote_schema_table(sum_column)
+
+        # Chokes on "TABLE"."column". Must substitute with TABLE."column"
+        general_summed_column = DB.literal(Sequel.deep_qualify(summed_table, summed_column))
+        new_table_summed_column = DB.literal(Sequel.deep_qualify(:NEW, summed_column)).gsub("\"NEW\"", "NEW")
+        old_table_summed_column = DB.literal(Sequel.deep_qualify(:OLD, summed_column)).gsub("\"OLD\"", "OLD")
+
         summed_table = quote_schema_table(summed_table)
         summed_table_id_column = quote_schema_table(summed_table_id_column)
-        summed_column = quote_schema_table(summed_column)
         join_table = quote_schema_table(join_table)
         main_table_fk_column = quote_schema_table(main_table_fk_column)
         summed_table_fk_column = quote_schema_table(summed_table_fk_column)
@@ -132,13 +137,13 @@ module Sequel
         pgt_trigger(orig_summed_table, trigger_name, function_name, [:insert, :delete, :update], <<-SQL)
         BEGIN
           IF (TG_OP = 'UPDATE' AND NEW.#{summed_table_id_column} = OLD.#{summed_table_id_column}) THEN
-            UPDATE #{main_table} SET #{sum_column} = #{sum_column} + NEW.#{summed_column} - OLD.#{summed_column} WHERE #{main_table_id_column} IN (SELECT #{main_table_fk_column} FROM #{join_table} WHERE #{summed_table_fk_column} = NEW.#{summed_table_id_column});
+            UPDATE #{main_table} SET #{sum_column} = #{sum_column} + #{new_table_summed_column} - #{old_table_summed_column} WHERE #{main_table_id_column} IN (SELECT #{main_table_fk_column} FROM #{join_table} WHERE #{summed_table_fk_column} = NEW.#{summed_table_id_column});
           ELSE
             IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
-              UPDATE #{main_table} SET #{sum_column} = #{sum_column} + NEW.#{summed_column} WHERE #{main_table_id_column} IN (SELECT #{main_table_fk_column} FROM #{join_table} WHERE #{summed_table_fk_column} = NEW.#{summed_table_id_column});
+              UPDATE #{main_table} SET #{sum_column} = #{sum_column} + #{new_table_summed_column} WHERE #{main_table_id_column} IN (SELECT #{main_table_fk_column} FROM #{join_table} WHERE #{summed_table_fk_column} = NEW.#{summed_table_id_column});
             END IF;
             IF (TG_OP = 'DELETE' OR TG_OP = 'UPDATE') THEN
-              UPDATE #{main_table} SET #{sum_column} = #{sum_column} - OLD.#{summed_column} WHERE #{main_table_id_column} IN (SELECT #{main_table_fk_column} FROM #{join_table} WHERE #{summed_table_fk_column} = OLD.#{summed_table_id_column});
+              UPDATE #{main_table} SET #{sum_column} = #{sum_column} - #{old_table_summed_column} WHERE #{main_table_id_column} IN (SELECT #{main_table_fk_column} FROM #{join_table} WHERE #{summed_table_fk_column} = OLD.#{summed_table_id_column});
             END IF;
           END IF;
           IF (TG_OP = 'DELETE') THEN
@@ -152,10 +157,10 @@ module Sequel
         BEGIN
           IF (NOT (TG_OP = 'UPDATE' AND NEW.#{main_table_fk_column} = OLD.#{main_table_fk_column} AND NEW.#{summed_table_fk_column} = OLD.#{summed_table_fk_column})) THEN
             IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
-              UPDATE #{main_table} SET #{sum_column} = #{sum_column} + (SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = NEW.#{summed_table_fk_column}) WHERE #{main_table_id_column} = NEW.#{main_table_fk_column};
+              UPDATE #{main_table} SET #{sum_column} = #{sum_column} + (SELECT #{general_summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = NEW.#{summed_table_fk_column}) WHERE #{main_table_id_column} = NEW.#{main_table_fk_column};
             END IF;
             IF (TG_OP = 'DELETE' OR TG_OP = 'UPDATE') THEN
-              UPDATE #{main_table} SET #{sum_column} = #{sum_column} - (SELECT #{summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = OLD.#{summed_table_fk_column}) WHERE #{main_table_id_column} = OLD.#{main_table_fk_column};
+              UPDATE #{main_table} SET #{sum_column} = #{sum_column} - (SELECT #{general_summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = OLD.#{summed_table_fk_column}) WHERE #{main_table_id_column} = OLD.#{main_table_fk_column};
             END IF;
           END IF;
           IF (TG_OP = 'DELETE') THEN
