@@ -110,10 +110,11 @@ module Sequel
         main_table_fk_column = opts.fetch(:main_table_fk_column)
         summed_table_fk_column = opts.fetch(:summed_table_fk_column)
 
-        trigger_name = opts[:trigger_name] || "pgt_stmc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}__#{main_table_fk_column}__#{summed_table_fk_column}"
-        function_name = opts[:function_name] || "pgt_stmc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table}__#{summed_table_id_column}__#{summed_column}__#{join_table}__#{main_table_fk_column}__#{summed_table_fk_column}"
-        join_trigger_name = opts[:join_trigger_name] || "pgt_stmc_join_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}__#{main_table_fk_column}__#{summed_table_fk_column}"
-        join_function_name = opts[:join_function_name] || "pgt_stmc_join_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table}__#{summed_table_id_column}__#{summed_column}__#{join_table}__#{main_table_fk_column}__#{summed_table_fk_column}"
+        summed_column_slug = summed_column.is_a?(String) || summed_column.is_a?(Symbol) ? "__#{summed_column}" : ""
+        trigger_name = opts[:trigger_name] || "pgt_stmc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}#{summed_column_slug}__#{main_table_fk_column}__#{summed_table_fk_column}"
+        function_name = opts[:function_name] || "pgt_stmc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table}__#{summed_table_id_column}#{summed_column_slug}__#{join_table}__#{main_table_fk_column}__#{summed_table_fk_column}"
+        join_trigger_name = opts[:join_trigger_name] || "pgt_stmc_join_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}#{summed_column_slug}__#{main_table_fk_column}__#{summed_table_fk_column}"
+        join_function_name = opts[:join_function_name] || "pgt_stmc_join_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table}__#{summed_table_id_column}#{summed_column_slug}__#{join_table}__#{main_table_fk_column}__#{summed_table_fk_column}"
 
         orig_summed_table = summed_table
         orig_join_table = join_table
