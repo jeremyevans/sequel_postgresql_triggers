@@ -75,8 +75,8 @@ module Sequel
         id_column = quote_identifier(summed_table_id_column)
 
         # Chokes on "TABLE"."column". Must substitute with TABLE."column"
-        new_table_summed_column = literal(Sequel.deep_qualify(:NEW, summed_column)).gsub("\"NEW\"", "NEW")
-        old_table_summed_column = literal(Sequel.deep_qualify(:OLD, summed_column)).gsub("\"OLD\"", "OLD")
+        new_table_summed_column = literal(Sequel.deep_qualify(Sequel.lit("NEW"), summed_column))
+        old_table_summed_column = literal(Sequel.deep_qualify(Sequel.lit("OLD"), summed_column))
         main_column = quote_identifier(main_table_id_column)
         sum_column = quote_identifier(sum_column)
 
@@ -125,8 +125,8 @@ module Sequel
 
         # Chokes on "TABLE"."column". Must substitute with TABLE."column"
         general_summed_column = literal(Sequel.deep_qualify(summed_table, summed_column))
-        new_table_summed_column = literal(Sequel.deep_qualify(:NEW, summed_column)).gsub("\"NEW\"", "NEW")
-        old_table_summed_column = literal(Sequel.deep_qualify(:OLD, summed_column)).gsub("\"OLD\"", "OLD")
+        new_table_summed_column = literal(Sequel.deep_qualify(Sequel.lit("NEW"), summed_column))
+        old_table_summed_column = literal(Sequel.deep_qualify(Sequel.lit("OLD"), summed_column))
 
         summed_table = quote_schema_table(summed_table)
         summed_table_id_column = quote_schema_table(summed_table_id_column)
