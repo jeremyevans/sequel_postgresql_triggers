@@ -100,6 +100,10 @@ or deleted from, records in the main table are updated with the
 count of the corresponding records in the counted table.  The counter
 cache column must have a default of 0 for this to work correctly.
 
+Use pgt_sum_cache with a Sequel expression in summed_column to
+handle any custom logic such as a counter cache that only counts
+certain rows.
+
 Arguments:
 main_table :: name of table holding counter cache column
 main_table_id_column :: column in main table matching counted_table_id_column in counted_table
@@ -115,13 +119,17 @@ of records in the main table, it stores the sum on one of the
 columns in summed table. The sum cache column must have a default
 of 0 for this to work correctly.
 
+Use a Sequel expression in summed_column to handle any custom
+logic such as a counter cache that only counts certain rows, or a
+sum cache that sums the length of a string column.
+
 Arguments:
 main_table :: name of table holding counter cache column
 main_table_id_column :: column in main table matching counted_table_id_column in counted_table
 sum_column :: column in main table containing the sum cache
 summed_table :: name of table being summed
 summed_table_id_column :: column in summed_table matching main_table_id_column in main_table
-summed_column :: column in summed_table being summed
+summed_column :: column in summed_table being summed or a Sequel expression to be evaluated in the context of the summed_table
 opts :: options hash
 
 === Sum Through Many Cache - pgt_sum_through_many_cache
@@ -130,6 +138,10 @@ Similar to pgt_sum_cache, except instead of a one-to-many relationship,
 it supports a many-to-many relationship with a single join table. The
 sum cache column must have a default of 0 for this to work correctly.
 
+Use a Sequel expression in summed_column to handle any custom
+logic such as a counter cache that only counts certain rows, or a
+sum cache that sums the length of a string column.
+
 This takes a single options hash argument, supporting the following options
 in addition to the standard options:
 :main_table :: name of table holding sum cache column
@@ -137,7 +149,7 @@ in addition to the standard options:
 :sum_column :: column in main table containing the sum cache, must be NOT NULL and default to 0
 :summed_table :: name of table being summed
 :summed_table_id_column :: primary key column in summed_table referenced by summed_table_fk_column (default: :id)
-:summed_column :: column in summed_table being summed, must be NOT NULL
+:summed_column :: column in summed_table being summed or a Sequel expression to be evaluated in the context of the summed_table, must be NOT NULL
 :join_table :: name of table which joins main_table with summed_table
 :join_trigger_name :: name of trigger for join table
 :join_function_name :: name of trigger function for join table
