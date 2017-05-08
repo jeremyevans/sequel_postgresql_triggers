@@ -1,6 +1,6 @@
 spec = Gem::Specification.new do |s|
   s.name = "sequel_postgresql_triggers"
-  s.version = "1.2.0"
+  s.version = "1.3.0"
   s.author = "Jeremy Evans"
   s.email = "code@jeremyevans.net"
   s.platform = Gem::Platform::RUBY
