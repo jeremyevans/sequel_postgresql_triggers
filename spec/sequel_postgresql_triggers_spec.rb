@@ -28,8 +28,8 @@ describe "PostgreSQL Triggers" do
       DB.create_table(:accounts){integer :id; integer :num_entries, :default=>0}
       DB.create_table(:entries){integer :id; integer :account_id}
       DB.pgt_counter_cache(:accounts, :id, :num_entries, :entries, :account_id, :function_name=>:spgt_counter_cache)
-      DB[:accounts] << {:id=>1}
-      DB[:accounts] << {:id=>2}
+      DB[:accounts].insert(:id=>1)
+      DB[:accounts].insert(:id=>2)
     end
 
     after do
@@ -40,13 +40,13 @@ describe "PostgreSQL Triggers" do
     it "Should modify counter cache when adding or removing records" do
       DB[:accounts].order(:id).select_map(:num_entries).must_equal [0, 0]
 
-      DB[:entries] << {:id=>1, :account_id=>1}
+      DB[:entries].insert(:id=>1, :account_id=>1)
       DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 0]
 
-      DB[:entries] << {:id=>2, :account_id=>1}
+      DB[:entries].insert(:id=>2, :account_id=>1)
       DB[:accounts].order(:id).select_map(:num_entries).must_equal [2, 0]
       
-      DB[:entries] << {:id=>3, :account_id=>nil}
+      DB[:entries].insert(:id=>3, :account_id=>nil)
       DB[:accounts].order(:id).select_map(:num_entries).must_equal [2, 0]
       
       DB[:entries].where(:id=>3).update(:account_id=>2)
@@ -87,12 +87,12 @@ describe "PostgreSQL Triggers" do
     end
 
     it "Should set the column upon insertion and ignore modifications afterward" do
-      DB[:accounts] << {:id=>1}
+      DB[:accounts].insert(:id=>1)
       t = DB[:accounts].get(:added_on)
       t.strftime('%F').must_equal Date.today.strftime('%F')
       DB[:accounts].update(:added_on=>Date.today - 60)
       DB[:accounts].get(:added_on).must_equal t
-      DB[:accounts] << {:id=>2}
+      DB[:accounts].insert(:id=>2)
       ds = DB[:accounts].select(:added_on)
       DB[:accounts].select((Sequel::SQL::NumericExpression.new(:NOOP, ds.filter(:id=>2)) > ds.filter(:id=>1)).as(:x)).first[:x].must_equal true
       DB[:accounts].filter(:id=>1).update(:id=>3)
@@ -104,7 +104,7 @@ describe "PostgreSQL Triggers" do
     before do
       DB.create_table(:accounts){integer :id; integer :balance, :default=>0}
       DB.pgt_immutable(:accounts, :balance, :function_name=>:spgt_immutable)
-      DB[:accounts] << {:id=>1}
+      DB[:accounts].insert(:id=>1)
     end
 
     after do
@@ -128,7 +128,7 @@ describe "PostgreSQL Triggers" do
     it "Should handle NULL values correctly" do
       proc{DB[:accounts].update(:balance=>nil)}.must_raise(Sequel::DatabaseError)
       DB[:accounts].delete
-      DB[:accounts] << {:id=>1, :balance=>nil}
+      DB[:accounts].insert(:id=>1, :balance=>nil)
       DB[:accounts].update(:balance=>nil)
       proc{DB[:accounts].update(:balance=>0)}.must_raise(Sequel::DatabaseError)
     end
@@ -139,8 +139,8 @@ describe "PostgreSQL Triggers" do
       DB.create_table(:accounts){integer :id; integer :balance, :default=>0}
       DB.create_table(:entries){integer :id; integer :account_id; integer :amount}
       DB.pgt_sum_cache(:accounts, :id, :balance, :entries, :account_id, :amount, :function_name=>:spgt_sum_cache)
-      DB[:accounts] << {:id=>1}
-      DB[:accounts] << {:id=>2}
+      DB[:accounts].insert(:id=>1)
+      DB[:accounts].insert(:id=>2)
     end
 
     after do
@@ -151,13 +151,13 @@ describe "PostgreSQL Triggers" do
     it "Should modify sum cache when adding, updating, or removing records" do
       DB[:accounts].order(:id).select_map(:balance).must_equal [0, 0]
 
-      DB[:entries] << {:id=>1, :account_id=>1, :amount=>100}
+      DB[:entries].insert(:id=>1, :account_id=>1, :amount=>100)
       DB[:accounts].order(:id).select_map(:balance).must_equal [100, 0]
 
-      DB[:entries] << {:id=>2, :account_id=>1, :amount=>200}
+      DB[:entries].insert(:id=>2, :account_id=>1, :amount=>200)
       DB[:accounts].order(:id).select_map(:balance).must_equal [300, 0]
       
-      DB[:entries] << {:id=>3, :account_id=>nil, :amount=>500}
+      DB[:entries].insert(:id=>3, :account_id=>nil, :amount=>500)
       DB[:accounts].order(:id).select_map(:balance).must_equal [300, 0]
       
       DB[:entries].where(:id=>3).update(:account_id=>2)
@@ -194,8 +194,8 @@ describe "PostgreSQL Triggers" do
       DB.create_table(:accounts){integer :id; integer :nonzero_entries_count, :default=>0}
       DB.create_table(:entries){integer :id; integer :account_id; integer :amount}
       DB.pgt_sum_cache(:accounts, :id, :nonzero_entries_count, :entries, :account_id, Sequel.case({0=>0}, 1, :amount), :function_name=>:spgt_sum_cache)
-      DB[:accounts] << {:id=>1}
-      DB[:accounts] << {:id=>2}
+      DB[:accounts].insert(:id=>1)
+      DB[:accounts].insert(:id=>2)
     end
 
     after do
@@ -206,13 +206,13 @@ describe "PostgreSQL Triggers" do
     it "Should modify sum cache when adding, updating, or removing records" do
       DB[:accounts].order(:id).select_map(:nonzero_entries_count).must_equal [0, 0]
 
-      DB[:entries] << {:id=>1, :account_id=>1, :amount=>100}
+      DB[:entries].insert(:id=>1, :account_id=>1, :amount=>100)
       DB[:accounts].order(:id).select_map(:nonzero_entries_count).must_equal [1, 0]
 
-      DB[:entries] << {:id=>2, :account_id=>1, :amount=>200}
+      DB[:entries].insert(:id=>2, :account_id=>1, :amount=>200)
       DB[:accounts].order(:id).select_map(:nonzero_entries_count).must_equal [2, 0]
 
-      DB[:entries] << {:id=>3, :account_id=>nil, :amount=>500}
+      DB[:entries].insert(:id=>3, :account_id=>nil, :amount=>500)
       DB[:accounts].order(:id).select_map(:nonzero_entries_count).must_equal [2, 0]
 
       DB[:entries].where(:id=>3).update(:account_id=>2)
@@ -261,8 +261,8 @@ describe "PostgreSQL Triggers" do
         :function_name=>:spgt_stm_cache,
         :join_function_name=>:spgt_stm_cache_join
       )
-      DB[:parents] << {:id=>1}
-      DB[:parents] << {:id=>2}
+      DB[:parents].insert(:id=>1)
+      DB[:parents].insert(:id=>2)
     end
 
     after do
@@ -274,23 +274,23 @@ describe "PostgreSQL Triggers" do
     it "Should modify sum cache when adding, updating, or removing records" do
       DB[:parents].order(:id).select_map(:balance).must_equal [0, 0]
 
-      DB[:children] << {:id=>1, :amount=>100}
-      DB[:links] << {:parent_id=>1, :child_id=>1}
+      DB[:children].insert(:id=>1, :amount=>100)
+      DB[:links].insert(:parent_id=>1, :child_id=>1)
       DB[:parents].order(:id).select_map(:balance).must_equal [100, 0]
 
-      DB[:children] << {:id=>2, :amount=>200}
-      DB[:links] << {:parent_id=>1, :child_id=>2}
+      DB[:children].insert(:id=>2, :amount=>200)
+      DB[:links].insert(:parent_id=>1, :child_id=>2)
       DB[:parents].order(:id).select_map(:balance).must_equal [300, 0]
 
-      DB[:children] << {:id=>3, :amount=>500}
+      DB[:children].insert(:id=>3, :amount=>500)
       DB[:parents].order(:id).select_map(:balance).must_equal [300, 0]
-      DB[:links] << {:parent_id=>2, :child_id=>3}
+      DB[:links].insert(:parent_id=>2, :child_id=>3)
       DB[:parents].order(:id).select_map(:balance).must_equal [300, 500]
 
       DB[:links].where(:parent_id=>2, :child_id=>3).update(:parent_id=>1)
       DB[:parents].order(:id).select_map(:balance).must_equal [800, 0]
 
-      DB[:children] << {:id=>4, :amount=>400}
+      DB[:children].insert(:id=>4, :amount=>400)
       DB[:links].where(:parent_id=>1, :child_id=>3).update(:child_id=>4)
       DB[:parents].order(:id).select_map(:balance).must_equal [700, 0]
 
@@ -309,7 +309,7 @@ describe "PostgreSQL Triggers" do
       DB[:links].where(:parent_id=>1, :child_id=>2).update(:child_id=>3)
       DB[:parents].order(:id).select_map(:balance).must_equal [1200, 1000]
 
-      DB[:links] << {:parent_id=>2, :child_id=>4}
+      DB[:links].insert(:parent_id=>2, :child_id=>4)
       DB[:parents].order(:id).select_map(:balance).must_equal [1200, 1800]
 
       DB[:children].filter(:id=>4).delete
@@ -318,7 +318,7 @@ describe "PostgreSQL Triggers" do
       DB[:links].filter(:parent_id=>1, :child_id=>1).delete
       DB[:parents].order(:id).select_map(:balance).must_equal [1000, 1000]
 
-      DB[:children] << {:id=>4, :amount=>400}
+      DB[:children].insert(:id=>4, :amount=>400)
       DB[:parents].order(:id).select_map(:balance).must_equal [1000, 1400]
 
       DB[:children].delete
@@ -354,8 +354,8 @@ describe "PostgreSQL Triggers" do
         :function_name=>:spgt_stm_cache,
         :join_function_name=>:spgt_stm_cache_join
       )
-      DB[:parents] << {:id=>1}
-      DB[:parents] << {:id=>2}
+      DB[:parents].insert(:id=>1)
+      DB[:parents].insert(:id=>2)
     end
 
     after do
@@ -367,23 +367,23 @@ describe "PostgreSQL Triggers" do
     it "Should modify sum cache when adding, updating, or removing records" do
       DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [0, 0]
 
-      DB[:children] << {:id=>1, :amount=>100}
-      DB[:links] << {:parent_id=>1, :child_id=>1}
+      DB[:children].insert(:id=>1, :amount=>100)
+      DB[:links].insert(:parent_id=>1, :child_id=>1)
       DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [1, 0]
 
-      DB[:children] << {:id=>2, :amount=>200}
-      DB[:links] << {:parent_id=>1, :child_id=>2}
+      DB[:children].insert(:id=>2, :amount=>200)
+      DB[:links].insert(:parent_id=>1, :child_id=>2)
       DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [2, 0]
 
-      DB[:children] << {:id=>3, :amount=>500}
+      DB[:children].insert(:id=>3, :amount=>500)
       DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [2, 0]
-      DB[:links] << {:parent_id=>2, :child_id=>3}
+      DB[:links].insert(:parent_id=>2, :child_id=>3)
       DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [2, 1]
 
       DB[:links].where(:parent_id=>2, :child_id=>3).update(:parent_id=>1)
       DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [3, 0]
 
-      DB[:children] << {:id=>4, :amount=>400}
+      DB[:children].insert(:id=>4, :amount=>400)
       DB[:links].where(:parent_id=>1, :child_id=>3).update(:child_id=>4)
       DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [3, 0]
 
@@ -402,7 +402,7 @@ describe "PostgreSQL Triggers" do
       DB[:links].where(:parent_id=>1, :child_id=>2).update(:child_id=>3)
       DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [2, 1]
 
-      DB[:links] << {:parent_id=>2, :child_id=>4}
+      DB[:links].insert(:parent_id=>2, :child_id=>4)
       DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [2, 2]
 
       DB[:children].filter(:id=>4).delete
@@ -411,7 +411,7 @@ describe "PostgreSQL Triggers" do
       DB[:links].filter(:parent_id=>1, :child_id=>1).delete
       DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [1, 1]
 
-      DB[:children] << {:id=>4, :amount=>400}
+      DB[:children].insert(:id=>4, :amount=>400)
       DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [1, 2]
 
       DB[:children].delete
@@ -443,10 +443,10 @@ describe "PostgreSQL Triggers" do
     end
 
     it "Should set the column always to the current timestamp" do
-      DB[:accounts] << {:id=>1}
+      DB[:accounts].insert(:id=>1)
       t = DB[:accounts].get(:changed_on)
       t.strftime('%F').must_equal Date.today.strftime('%F')
-      DB[:accounts] << {:id=>2}
+      DB[:accounts].insert(:id=>2)
       ds = DB[:accounts].select(:changed_on)
       DB[:accounts].select((Sequel::SQL::NumericExpression.new(:NOOP, ds.filter(:id=>2)) > ds.filter(:id=>1)).as(:x)).first[:x].must_equal true
       DB[:accounts].filter(:id=>1).update(:id=>3)
@@ -470,9 +470,9 @@ describe "PostgreSQL Triggers" do
       DB.pgt_touch(:children, :parents, :changed_on, {:id1=>:parent_id1}, :function_name=>:spgt_touch)
       d = Date.today
       d30 = Date.today - 30
-      DB[:parents] << {:id1=>1, :changed_on=>d30}
-      DB[:parents] << {:id1=>2, :changed_on=>d30}
-      DB[:children] << {:id=>1, :parent_id1=>1}
+      DB[:parents].insert(:id1=>1, :changed_on=>d30)
+      DB[:parents].insert(:id1=>2, :changed_on=>d30)
+      DB[:children].insert(:id=>1, :parent_id1=>1)
       DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.must_equal [d.strftime('%F'), d30.strftime('%F')]
 
       DB[:parents].update(:changed_on=>d30)
@@ -500,7 +500,7 @@ describe "PostgreSQL Triggers" do
       DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.must_equal [d30.strftime('%F'), d.strftime('%F')]
 
       DB[:parents].update(:changed_on=>d30)
-      DB[:children] << {:id=>2, :parent_id1=>nil}
+      DB[:children].insert(:id=>2, :parent_id1=>nil)
       DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.must_equal [d30.strftime('%F'), d30.strftime('%F')]
       DB[:children].where(:id=>2).delete
       DB[:parents].order(:id1).select_map(:changed_on).map{|t| t.strftime('%F')}.must_equal [d30.strftime('%F'), d30.strftime('%F')]
@@ -508,8 +508,8 @@ describe "PostgreSQL Triggers" do
 
     it "Should update the timestamp column of the related table when there is a composite foreign key" do
       DB.pgt_touch(:children, :parents, :changed_on, {:id1=>:parent_id1, :id2=>:parent_id2}, :function_name=>:spgt_touch)
-      DB[:parents] << {:id1=>1, :id2=>2, :changed_on=>Date.today - 30}
-      DB[:children] << {:id=>1, :parent_id1=>1, :parent_id2=>2}
+      DB[:parents].insert(:id1=>1, :id2=>2, :changed_on=>Date.today - 30)
+      DB[:children].insert(:id=>1, :parent_id1=>1, :parent_id2=>2)
       DB[:parents].get(:changed_on).strftime('%F').must_equal Date.today.strftime('%F')
       DB[:parents].update(:changed_on=>Date.today - 30)
       DB[:children].update(:id=>2)
@@ -523,8 +523,8 @@ describe "PostgreSQL Triggers" do
       DB.pgt_touch(:children, :parents, :changed_on, {:id1=>:parent_id1}, :function_name=>:spgt_touch)
       @spgt_touch2 = true
       DB.pgt_touch(:parents, :children, :changed_on, {:id=>:child_id}, :function_name=>:spgt_touch2)
-      DB[:parents] << {:id1=>1, :child_id=>1, :changed_on=>Date.today - 30}
-      DB[:children] << {:id=>1, :parent_id1=>1, :changed_on=>Date.today - 30}
+      DB[:parents].insert(:id1=>1, :child_id=>1, :changed_on=>Date.today - 30)
+      DB[:children].insert(:id=>1, :parent_id1=>1, :changed_on=>Date.today - 30)
       DB[:parents].get(:changed_on).strftime('%F').must_equal Date.today.strftime('%F')
       DB[:children].get(:changed_on).strftime('%F').must_equal Date.today.strftime('%F')
       time = DB[:parents].get(:changed_on)
@@ -542,8 +542,8 @@ describe "PostgreSQL Triggers" do
 
     it "Should update the timestamp on the related table if that timestamp is initially NULL" do
       DB.pgt_touch(:children, :parents, :changed_on, {:id1=>:parent_id1}, :function_name=>:spgt_touch)
-      DB[:parents] << {:id1=>1, :changed_on=>nil}
-      DB[:children] << {:id=>1, :parent_id1=>1}
+      DB[:parents].insert(:id1=>1, :changed_on=>nil)
+      DB[:children].insert(:id=>1, :parent_id1=>1)
       changed_on = DB[:parents].get(:changed_on)
       changed_on.wont_equal nil
       changed_on.strftime('%F').must_equal Date.today.strftime('%F')
