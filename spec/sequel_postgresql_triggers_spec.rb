@@ -14,6 +14,7 @@ else
   puts "Running specs with extension"
   DB.extension :pg_triggers 
 end
+DB.extension :pg_array
 
 describe "PostgreSQL Triggers" do
   before do
@@ -547,6 +548,46 @@ describe "PostgreSQL Triggers" do
       changed_on = DB[:parents].get(:changed_on)
       changed_on.wont_equal nil
       changed_on.strftime('%F').must_equal Date.today.strftime('%F')
+    end
+  end
+
+  describe "PostgreSQL Array Foreign Key Trigger" do
+    before do
+      DB.create_table(:accounts){Integer :id, :primary_key=>true}
+      DB.create_table(:entries){Integer :id, :primary_key=>true; column :account_ids, 'integer[]'}
+      DB.pgt_foreign_key_array(:table=>:entries, :column=>:account_ids, :referenced_table=>:accounts, :referenced_column=>:id, :function_name=>:spgt_foreign_key_array, :referenced_function_name=>:spgt_referenced_foreign_key_array)
+    end
+
+    after do
+      DB.drop_table(:entries, :accounts)
+      DB.drop_function(:spgt_foreign_key_array)
+      DB.drop_function(:spgt_referenced_foreign_key_array)
+    end
+
+    it "should raise error for queries that violate referential integrity, and allow other queries" do
+      proc{DB[:entries].insert(:id=>10, :account_ids=>Sequel.pg_array([1]))}.must_raise Sequel::DatabaseError
+      DB[:entries].insert(:id=>10, :account_ids=>nil)
+      DB[:entries].update(:account_ids=>Sequel.pg_array([], :integer))
+      DB[:accounts].insert(:id=>1)
+      proc{DB[:entries].insert(:id=>10, :account_ids=>Sequel.pg_array([1, 1]))}.must_raise Sequel::DatabaseError
+      DB[:entries].update(:account_ids=>Sequel.pg_array([1]))
+      proc{DB[:entries].update(:account_ids=>Sequel.pg_array([2]))}.must_raise Sequel::DatabaseError
+      DB[:accounts].insert(:id=>2)
+      proc{DB[:entries].insert(:id=>10, :account_ids=>Sequel.pg_array([[1], [2]]))}.must_raise Sequel::DatabaseError
+      DB[:entries].update(:account_ids=>Sequel.pg_array([2]))
+      DB[:entries].all.must_equal [{:id=>10, :account_ids=>[2]}]
+      DB[:entries].update(:account_ids=>Sequel.pg_array([1, 2]))
+      DB[:entries].all.must_equal [{:id=>10, :account_ids=>[1, 2]}]
+      DB[:entries].update(:account_ids=>Sequel.pg_array([1]))
+      DB[:accounts].where(:id=>1).update(:id=>1)
+      DB[:accounts].where(:id=>2).update(:id=>3)
+      proc{DB[:accounts].where(:id=>1).update(:id=>2)}.must_raise Sequel::DatabaseError
+      proc{DB[:accounts].where(:id=>1).delete}.must_raise Sequel::DatabaseError
+      DB[:accounts].where(:id=>3).count.must_equal 1
+      DB[:accounts].where(:id=>3).delete
+      proc{DB[:accounts].delete}.must_raise Sequel::DatabaseError
+      DB[:entries].delete
+      DB[:accounts].delete
     end
   end
 end

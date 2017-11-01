@@ -7,6 +7,7 @@ a user to easily handle the following types of columns:
 * Counter/Sum Caches
 * Immutable Columns
 * Touch Propogation
+* Foreign Key Arrays (Referential Integrity Checks)
 
 It handles these internally to the database via triggers, so even if
 other applications access the database (without using Sequel), things
@@ -176,6 +177,26 @@ touch_table :: name of table that needs to be touched
 column :: name of timestamp column to be touched
 expr :: hash or array that represents the columns that define the relationship
 opts :: options hash
+
+=== Foreign Key Arrays - pgt_foreign_key_array
+
+This takes a single options hash, and sets up triggers on both
+tables involved.  The table with the foreign key array has insert/update
+triggers to make sure newly inserted/updated rows reference valid rows
+in the referenced table.  The table being referenced has update/delete
+triggers to make sure the value before update or delete is not still
+being referenced.
+
+Note that this will not catch all referential integrity violations, but
+it should catch the most common ones.
+
+Options:
+:table :: table with foreign key array
+:column :: foreign key array column
+:referenced_table :: table referenced by foreign key array
+:referenced_column :: column referenced by foreign key array (generally primary key)
+:referenced_function_name :: function name for trigger function on referenced table
+:referenced_trigger_name :: trigger name for referenced table
 
 == License
 

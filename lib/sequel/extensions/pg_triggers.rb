@@ -213,6 +213,66 @@ module Sequel
         SQL
       end
 
+      def pgt_foreign_key_array(opts={})
+        table, column, rtable, rcolumn = opts.values_at(:table, :column, :referenced_table, :referenced_column)
+        trigger_name = opts[:trigger_name] || "pgt_fka_#{column}"
+        function_name = opts[:function_name] || "pgt_fka_#{table}__#{column}"
+        rtrigger_name = opts[:referenced_trigger_name] || "pgt_rfka_#{column}"
+        rfunction_name = opts[:referenced_function_name] || "pgt_rfka_#{table}__#{column}"
+        col = quote_identifier(column)
+        tab = quote_identifier(table)
+        rcol = quote_identifier(rcolumn)
+        rtab = quote_identifier(rtable)
+
+        pgt_trigger(table, trigger_name, function_name, [:insert, :update], <<-SQL)
+        DECLARE
+          arr #{tab}.#{col}%TYPE;
+          temp_count1 int;
+          temp_count2 int;
+        BEGIN
+          arr := NEW.#{col};
+          temp_count1 := array_ndims(arr);
+          IF arr IS NULL OR temp_count1 IS NULL THEN
+            RETURN NEW;
+          END IF;
+
+          IF temp_count1 IS DISTINCT FROM 1 THEN
+              RAISE EXCEPTION 'Foreign key array #{tab}.#{col} has more than 1 dimension: %, dimensions: %', arr, temp_count1;
+          END IF;
+
+          SELECT count(*) INTO temp_count1 FROM unnest(arr);
+          SELECT count(*) INTO temp_count2 FROM (SELECT DISTINCT * FROM unnest(arr)) AS t;
+          IF temp_count1 IS DISTINCT FROM temp_count2 THEN
+              RAISE EXCEPTION 'Duplicate entry in foreign key array #{tab}.#{col}: %', arr;
+          END IF;
+
+          SELECT COUNT(*) INTO temp_count1 FROM #{rtab} WHERE #{rcol} = ANY(arr);
+          temp_count2 := array_length(arr, 1);
+          IF temp_count1 IS DISTINCT FROM temp_count2 THEN
+              RAISE EXCEPTION 'Entry in foreign key array #{tab}.#{col} not in referenced column #{rtab}.#{rcol}: %', arr;
+          END IF;
+
+          RETURN NEW;
+        END;
+        SQL
+
+        pgt_trigger(rtable, rtrigger_name, rfunction_name, [:delete, :update], <<-SQL)
+        DECLARE
+          val #{rtab}.#{rcol}%TYPE;
+          temp_count int;
+        BEGIN
+          val := OLD.#{rcol};
+          IF (TG_OP = 'DELETE') OR val IS DISTINCT FROM NEW.#{rcol} THEN
+            SELECT COUNT(*) INTO temp_count FROM #{tab} WHERE #{col} @> ARRAY[val];
+            IF temp_count IS DISTINCT FROM 0 THEN
+                RAISE EXCEPTION 'Entry in referenced column #{rtab}.#{rcol} still in foreign key array #{tab}.#{col}: %, count: %', val, temp_count;
+            END IF;
+          END IF;
+          RETURN NEW;
+        END;
+        SQL
+      end
+
       private
 
       # Add or replace a function that returns trigger to handle the action,
