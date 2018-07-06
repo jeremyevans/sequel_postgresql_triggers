@@ -1,7 +1,9 @@
 #!/usr/bin/env ruby
 require 'rubygems'
 require 'sequel'
-require 'minitest/spec'
+
+ENV['MT_NO_PLUGINS'] = '1' # Work around stupid autoloading of plugins
+gem 'minitest'
 require 'minitest/autorun'
 
 DB = Sequel.connect(ENV['PGT_SPEC_DB']||'postgres:///spgt_test?user=postgres')
