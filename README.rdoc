@@ -95,7 +95,7 @@ opts :: options hash
 
 === Counter Cache - pgt_counter_cache
 
-This takes quite a few arguments (see the RDoc) and sets up a
+This takes many arguments and sets up a
 counter cache so that when the counted table is inserted to
 or deleted from, records in the main table are updated with the
 count of the corresponding records in the counted table.  The counter
@@ -167,7 +167,7 @@ table :: name of table
 
 === Touch Propagation - pgt_touch
 
-This takes several arguments (again, see the RDoc) and sets up a
+This takes several arguments and sets up a
 trigger that watches one table for changes, and touches timestamps
 of related rows in a separate table.
 
