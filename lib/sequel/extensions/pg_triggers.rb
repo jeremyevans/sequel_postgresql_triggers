@@ -51,6 +51,21 @@ module Sequel
         SQL
       end
 
+      def pgt_force_defaults(table, defaults, opts={})
+        cols = defaults.keys.sort.join('_')
+        trigger_name = opts[:trigger_name] || "pgt_fd_#{cols}"
+        function_name = opts[:function_name] || "pgt_fd_#{table}__#{cols}"
+        lines = defaults.map do |column, v|
+          "NEW.#{quote_identifier(column)} = #{literal(v)};"
+        end
+        pgt_trigger(table, trigger_name, function_name, [:insert], <<-SQL)
+        BEGIN
+          #{lines.join("\n")}
+          RETURN NEW;
+        END;
+        SQL
+      end
+
       def pgt_immutable(table, *columns)
         opts = columns.last.is_a?(Hash) ? columns.pop : {}
         trigger_name = opts[:trigger_name] || "pgt_im_#{columns.join('__')}"

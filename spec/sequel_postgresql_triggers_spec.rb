@@ -584,3 +584,26 @@ describe "PostgreSQL Array Foreign Key Trigger" do
     DB[:accounts].delete
   end
 end
+
+describe "PostgreSQL Force Defaults Trigger" do
+  before do
+    DB.create_table(:accounts){integer :id; integer :a, :default=>0; String :b; integer :c; integer :d, :default=>4}
+    DB.pgt_force_defaults(:accounts, {:a=>1, :b=>"'\\a", :c=>nil}, :function_name=>:spgt_force_defaults)
+    @ds = DB[:accounts]
+  end
+
+  after do
+    DB.drop_table(:accounts)
+    DB.drop_function(:spgt_force_defaults)
+  end
+
+  it "should override default values when inserting" do
+    @ds.insert
+    DB[:accounts].first.must_equal(:id=>nil, :a=>1, :b=>"'\\a", :c=>nil, :d=>4)
+
+    @ds.delete
+    @ds.insert(:id=>10, :a=>11, :b=>12, :c=>13, :d=>14)
+    DB[:accounts].first.must_equal(:id=>10, :a=>1, :b=>"'\\a", :c=>nil, :d=>14)
+  end
+end
+

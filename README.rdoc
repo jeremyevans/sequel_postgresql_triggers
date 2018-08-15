@@ -198,6 +198,21 @@ Options:
 :referenced_function_name :: function name for trigger function on referenced table
 :referenced_trigger_name :: trigger name for referenced table
 
+=== Force Defaults - pgt_force_defaults
+
+This takes 2 arguments, a table and a hash of column default values, and sets
+up an insert trigger that will override user submitted or database
+default values and use the values given when setting up the trigger.
+This is mostly useful in situations where multiple database accounts
+are used where one account has insert permissions but not update
+permissions, and you want to ensure that inserted rows have specific
+column values to enforce security requirements.
+
+Arguments:
+table :: The name of the table
+defaults :: A hash of default values to enforce, where keys are column names
+            and values are the default values to enforce
+
 == License
 
 This library is released under the MIT License.  See the MIT-LICENSE
