@@ -607,3 +607,38 @@ describe "PostgreSQL Force Defaults Trigger" do
   end
 end
 
+
+describe "PostgreSQL JSON Audit Logging" do
+  before do
+    DB.extension :pg_json
+    DB.create_table(:accounts){integer :id; integer :a}
+    DB.pgt_json_audit_log_setup(:table_audit_logs, :function_name=>:spgt_audit_log)
+    DB.pgt_json_audit_log(:accounts, :spgt_audit_log)
+    @ds = DB[:accounts]
+    @ds.insert(:id=>1)
+    @logs = DB[:table_audit_logs].reverse(:at)
+  end
+
+  after do
+    DB.drop_table(:accounts, :table_audit_logs)
+    DB.drop_function(:spgt_audit_log)
+  end
+
+  it "should previous values in JSON format for inserts and updates" do
+    @logs.first.must_be_nil
+
+    @ds.update(:id=>2, :a=>3)
+    @ds.all.must_equal [{:id=>2, :a=>3}]
+    h = @logs.first
+    h.delete(:at).to_i.must_be_within_delta(10, DB.get(Sequel::CURRENT_TIMESTAMP).to_i)
+    h.delete(:user).must_be_kind_of(String)
+    h.must_equal(:schema=>"public", :table=>"accounts", :action=>"UPDATE", :prior=>{"a"=>nil, "id"=>1})
+
+    @ds.delete
+    @ds.all.must_equal []
+    h = @logs.first
+    h.delete(:at).to_i.must_be_within_delta(10, DB.get(Sequel::CURRENT_TIMESTAMP).to_i)
+    h.delete(:user).must_be_kind_of(String)
+    h.must_equal(:schema=>"public", :table=>"accounts", :action=>"DELETE", :prior=>{"a"=>3, "id"=>2})
+  end
+end if DB.server_version >= 90400

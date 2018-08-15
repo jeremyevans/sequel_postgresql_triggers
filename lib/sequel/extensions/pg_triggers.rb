@@ -82,6 +82,33 @@ module Sequel
         pgt_trigger(table, trigger_name, function_name, :update, "BEGIN #{ifs} RETURN NEW; END;")
       end
 
+      def pgt_json_audit_log_setup(table, opts={})
+        function_name = opts[:function_name] || "pgt_jal_#{table}"
+        create_table(table) do
+          DateTime :at, :default=>Sequel::CURRENT_TIMESTAMP, :null=>false
+          String :user
+          String :schema
+          String :table
+          String :action
+          jsonb :prior
+        end
+        create_function(function_name, (<<-SQL), {:language=>:plpgsql, :returns=>:trigger, :replace=>true}.merge(opts[:function_opts]||{}))
+        BEGIN
+          INSERT INTO #{quote_identifier(table)} (at, "user", "schema", "table", action, prior) VALUES
+          (CURRENT_TIMESTAMP, CURRENT_USER, TG_TABLE_SCHEMA, TG_TABLE_NAME, TG_OP, to_jsonb(OLD));
+          IF (TG_OP = 'DELETE') THEN
+            RETURN OLD;
+          END IF;
+          RETURN NEW;
+        END;
+        SQL
+        function_name
+      end
+
+      def pgt_json_audit_log(table, function, opts={})
+        create_trigger(table, (opts[:trigger_name] || "pgt_jal_#{table}"), function, :events=>[:update, :delete], :each_row=>true, :after=>true)
+      end
+
       def pgt_sum_cache(main_table, main_table_id_column, sum_column, summed_table, summed_table_id_column, summed_column, opts={})
         trigger_name = opts[:trigger_name] || "pgt_sc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}"
         function_name = opts[:function_name] || "pgt_sc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table}__#{summed_table_id_column}__#{summed_column}"

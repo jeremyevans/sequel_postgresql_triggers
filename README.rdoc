@@ -213,6 +213,37 @@ table :: The name of the table
 defaults :: A hash of default values to enforce, where keys are column names
             and values are the default values to enforce
 
+=== JSON Audit Logging - pgt_json_audit_log_setup and pg_json_audit_log
+
+These methods setup an auditing function where updates and deletes log
+the previous values to a central auditing table in JSON format.
+
+==== pgt_json_audit_log_setup
+
+This creates an audit table and a trigger function that will log
+previous values to the audit table. This returns the name of the
+trigger function created, which should be passed to
++pgt_json_audit_log+.
+
+Arguments:
+table :: The name of the table storing the audit logs.
+
+Options:
+function_opts :: Options to pass to +create_function+ when creating
+                 the trigger function.
+
+==== pgt_json_audit_log
+
+This adds a trigger to the table that will log previous values to the
+audting table for updates and deletes.
+
+Arguments:
+table :: The name of the table to audit
+function :: The name of the trigger function to call to log changes
+
+Note that it is probably a bad idea to use the same table argument
+to both +pgt_json_audit_log_setup+ and +pgt_json_audit_log+.
+
 == License
 
 This library is released under the MIT License.  See the MIT-LICENSE
