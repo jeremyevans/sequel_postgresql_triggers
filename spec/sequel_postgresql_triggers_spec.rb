@@ -632,6 +632,8 @@ describe "PostgreSQL JSON Audit Logging" do
     h = @logs.first
     h.delete(:at).to_i.must_be_within_delta(10, DB.get(Sequel::CURRENT_TIMESTAMP).to_i)
     h.delete(:user).must_be_kind_of(String)
+    txid1 = h.delete(:txid)
+    txid1.must_be_kind_of(Integer)
     h.must_equal(:schema=>"public", :table=>"accounts", :action=>"UPDATE", :prior=>{"a"=>nil, "id"=>1})
 
     @ds.delete
@@ -639,6 +641,9 @@ describe "PostgreSQL JSON Audit Logging" do
     h = @logs.first
     h.delete(:at).to_i.must_be_within_delta(10, DB.get(Sequel::CURRENT_TIMESTAMP).to_i)
     h.delete(:user).must_be_kind_of(String)
+    txid2 = h.delete(:txid)
+    txid2.must_be_kind_of(Integer)
+    txid2.must_be :>, txid1
     h.must_equal(:schema=>"public", :table=>"accounts", :action=>"DELETE", :prior=>{"a"=>3, "id"=>2})
   end
 end if DB.server_version >= 90400

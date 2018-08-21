@@ -232,6 +232,16 @@ Options:
 function_opts :: Options to pass to +create_function+ when creating
                  the trigger function.
 
+The audit log table will store the following columns:
+
+txid :: The 64-bit transaction ID for the transaction that made the modification (txid_current())
+at :: The timestamp of the transaction that made the modification (CURRENT_TIMESTAMP)
+user :: The database user name that made the modification (CURRENT_USER)
+schema :: The schema containing the table that was modified (TG_TABLE_SCHEMA)
+table :: The table that was modified (TG_TABLE_NAME)
+action :: The type of modification, either DELETE or UPDATE (TG_OP)
+prior :: A jsonb column with the contents of the row before the modification (to_jsonb(OLD))
+
 ==== pgt_json_audit_log
 
 This adds a trigger to the table that will log previous values to the

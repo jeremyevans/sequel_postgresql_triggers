@@ -85,17 +85,18 @@ module Sequel
       def pgt_json_audit_log_setup(table, opts={})
         function_name = opts[:function_name] || "pgt_jal_#{table}"
         create_table(table) do
+          Bignum :txid, :null=>false, :index=>true
           DateTime :at, :default=>Sequel::CURRENT_TIMESTAMP, :null=>false
-          String :user
-          String :schema
-          String :table
-          String :action
-          jsonb :prior
+          String :user, :null=>false
+          String :schema, :null=>false
+          String :table, :null=>false
+          String :action, :null=>false
+          jsonb :prior, :null=>false
         end
         create_function(function_name, (<<-SQL), {:language=>:plpgsql, :returns=>:trigger, :replace=>true}.merge(opts[:function_opts]||{}))
         BEGIN
-          INSERT INTO #{quote_identifier(table)} (at, "user", "schema", "table", action, prior) VALUES
-          (CURRENT_TIMESTAMP, CURRENT_USER, TG_TABLE_SCHEMA, TG_TABLE_NAME, TG_OP, to_jsonb(OLD));
+          INSERT INTO #{quote_identifier(table)} (txid, at, "user", "schema", "table", action, prior) VALUES
+          (txid_current(), CURRENT_TIMESTAMP, CURRENT_USER, TG_TABLE_SCHEMA, TG_TABLE_NAME, TG_OP, to_jsonb(OLD));
           IF (TG_OP = 'DELETE') THEN
             RETURN OLD;
           END IF;
