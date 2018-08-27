@@ -6,8 +6,8 @@ module Sequel
   module Postgres
     PGT_DEFINE = proc do
       def pgt_counter_cache(main_table, main_table_id_column, counter_column, counted_table, counted_table_id_column, opts={})
-        trigger_name = opts[:trigger_name] || "pgt_cc_#{main_table}__#{main_table_id_column}__#{counter_column}__#{counted_table_id_column}"
-        function_name = opts[:function_name] || "pgt_cc_#{main_table}__#{main_table_id_column}__#{counter_column}__#{counted_table}__#{counted_table_id_column}"
+        trigger_name = opts[:trigger_name] || "pgt_cc_#{pgt_mangled_table_name(main_table)}__#{main_table_id_column}__#{counter_column}__#{counted_table_id_column}"
+        function_name = opts[:function_name] || "pgt_cc_#{pgt_mangled_table_name(main_table)}__#{main_table_id_column}__#{counter_column}__#{pgt_mangled_table_name(counted_table)}__#{counted_table_id_column}"
 
         table = quote_schema_table(main_table)
         id_column = quote_identifier(counted_table_id_column)
@@ -37,7 +37,7 @@ module Sequel
 
       def pgt_created_at(table, column, opts={})
         trigger_name = opts[:trigger_name] || "pgt_ca_#{column}"
-        function_name = opts[:function_name] || "pgt_ca_#{table}__#{column}"
+        function_name = opts[:function_name] || "pgt_ca_#{pgt_mangled_table_name(table)}__#{column}"
         col = quote_identifier(column)
         pgt_trigger(table, trigger_name, function_name, [:insert, :update], <<-SQL)
         BEGIN
@@ -54,7 +54,7 @@ module Sequel
       def pgt_force_defaults(table, defaults, opts={})
         cols = defaults.keys.sort.join('_')
         trigger_name = opts[:trigger_name] || "pgt_fd_#{cols}"
-        function_name = opts[:function_name] || "pgt_fd_#{table}__#{cols}"
+        function_name = opts[:function_name] || "pgt_fd_#{pgt_mangled_table_name(table)}__#{cols}"
         lines = defaults.map do |column, v|
           "NEW.#{quote_identifier(column)} = #{literal(v)};"
         end
@@ -83,7 +83,7 @@ module Sequel
       end
 
       def pgt_json_audit_log_setup(table, opts={})
-        function_name = opts[:function_name] || "pgt_jal_#{table}"
+        function_name = opts[:function_name] || "pgt_jal_#{pgt_mangled_table_name(table)}"
         create_table(table) do
           Bignum :txid, :null=>false, :index=>true
           DateTime :at, :default=>Sequel::CURRENT_TIMESTAMP, :null=>false
@@ -95,7 +95,7 @@ module Sequel
         end
         create_function(function_name, (<<-SQL), {:language=>:plpgsql, :returns=>:trigger, :replace=>true}.merge(opts[:function_opts]||{}))
         BEGIN
-          INSERT INTO #{quote_identifier(table)} (txid, at, "user", "schema", "table", action, prior) VALUES
+          INSERT INTO #{quote_schema_table(table)} (txid, at, "user", "schema", "table", action, prior) VALUES
           (txid_current(), CURRENT_TIMESTAMP, CURRENT_USER, TG_TABLE_SCHEMA, TG_TABLE_NAME, TG_OP, to_jsonb(OLD));
           IF (TG_OP = 'DELETE') THEN
             RETURN OLD;
@@ -107,12 +107,12 @@ module Sequel
       end
 
       def pgt_json_audit_log(table, function, opts={})
-        create_trigger(table, (opts[:trigger_name] || "pgt_jal_#{table}"), function, :events=>[:update, :delete], :each_row=>true, :after=>true)
+        create_trigger(table, (opts[:trigger_name] || "pgt_jal_#{pgt_mangled_table_name(table)}"), function, :events=>[:update, :delete], :each_row=>true, :after=>true)
       end
 
       def pgt_sum_cache(main_table, main_table_id_column, sum_column, summed_table, summed_table_id_column, summed_column, opts={})
-        trigger_name = opts[:trigger_name] || "pgt_sc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}"
-        function_name = opts[:function_name] || "pgt_sc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table}__#{summed_table_id_column}__#{summed_column}"
+        trigger_name = opts[:trigger_name] || "pgt_sc_#{pgt_mangled_table_name(main_table)}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}"
+        function_name = opts[:function_name] || "pgt_sc_#{pgt_mangled_table_name(main_table)}__#{main_table_id_column}__#{sum_column}__#{pgt_mangled_table_name(summed_table)}__#{summed_table_id_column}__#{summed_column}"
 
         table = quote_schema_table(main_table)
         id_column = quote_identifier(summed_table_id_column)
@@ -154,10 +154,10 @@ module Sequel
         summed_table_fk_column = opts.fetch(:summed_table_fk_column)
 
         summed_column_slug = summed_column.is_a?(String) || summed_column.is_a?(Symbol) ? "__#{summed_column}" : ""
-        trigger_name = opts[:trigger_name] || "pgt_stmc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}#{summed_column_slug}__#{main_table_fk_column}__#{summed_table_fk_column}"
-        function_name = opts[:function_name] || "pgt_stmc_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table}__#{summed_table_id_column}#{summed_column_slug}__#{join_table}__#{main_table_fk_column}__#{summed_table_fk_column}"
-        join_trigger_name = opts[:join_trigger_name] || "pgt_stmc_join_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}#{summed_column_slug}__#{main_table_fk_column}__#{summed_table_fk_column}"
-        join_function_name = opts[:join_function_name] || "pgt_stmc_join_#{main_table}__#{main_table_id_column}__#{sum_column}__#{summed_table}__#{summed_table_id_column}#{summed_column_slug}__#{join_table}__#{main_table_fk_column}__#{summed_table_fk_column}"
+        trigger_name = opts[:trigger_name] || "pgt_stmc_#{pgt_mangled_table_name(main_table)}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}#{summed_column_slug}__#{main_table_fk_column}__#{summed_table_fk_column}"
+        function_name = opts[:function_name] || "pgt_stmc_#{pgt_mangled_table_name(main_table)}__#{main_table_id_column}__#{sum_column}__#{pgt_mangled_table_name(summed_table)}__#{summed_table_id_column}#{summed_column_slug}__#{pgt_mangled_table_name(join_table)}__#{main_table_fk_column}__#{summed_table_fk_column}"
+        join_trigger_name = opts[:join_trigger_name] || "pgt_stmc_join_#{pgt_mangled_table_name(main_table)}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}#{summed_column_slug}__#{main_table_fk_column}__#{summed_table_fk_column}"
+        join_function_name = opts[:join_function_name] || "pgt_stmc_join_#{pgt_mangled_table_name(main_table)}__#{main_table_id_column}__#{sum_column}__#{pgt_mangled_table_name(summed_table)}__#{summed_table_id_column}#{summed_column_slug}__#{pgt_mangled_table_name(join_table)}__#{main_table_fk_column}__#{summed_table_fk_column}"
 
         orig_summed_table = summed_table
         orig_join_table = join_table
@@ -214,8 +214,8 @@ module Sequel
       end
 
       def pgt_touch(main_table, touch_table, column, expr, opts={})
-        trigger_name = opts[:trigger_name] || "pgt_t_#{main_table}__#{touch_table}"
-        function_name = opts[:function_name] || "pgt_t_#{main_table}__#{touch_table}"
+        trigger_name = opts[:trigger_name] || "pgt_t_#{pgt_mangled_table_name(main_table)}__#{pgt_mangled_table_name(touch_table)}"
+        function_name = opts[:function_name] || "pgt_t_#{pgt_mangled_table_name(main_table)}__#{pgt_mangled_table_name(touch_table)}"
         cond = lambda{|source| expr.map{|k,v| "#{quote_identifier(k)} = #{source}.#{quote_identifier(v)}"}.join(" AND ")}
         same_id = expr.map{|k,v| "NEW.#{quote_identifier(v)} = OLD.#{quote_identifier(v)}"}.join(" AND ")
 
@@ -247,7 +247,7 @@ module Sequel
 
       def pgt_updated_at(table, column, opts={})
         trigger_name = opts[:trigger_name] || "pgt_ua_#{column}"
-        function_name = opts[:function_name] || "pgt_ua_#{table}__#{column}"
+        function_name = opts[:function_name] || "pgt_ua_#{pgt_mangled_table_name(table)}__#{column}"
         pgt_trigger(table, trigger_name, function_name, [:insert, :update], <<-SQL)
         BEGIN
           NEW.#{quote_identifier(column)} := CURRENT_TIMESTAMP;
@@ -259,9 +259,9 @@ module Sequel
       def pgt_foreign_key_array(opts={})
         table, column, rtable, rcolumn = opts.values_at(:table, :column, :referenced_table, :referenced_column)
         trigger_name = opts[:trigger_name] || "pgt_fka_#{column}"
-        function_name = opts[:function_name] || "pgt_fka_#{table}__#{column}"
+        function_name = opts[:function_name] || "pgt_fka_#{pgt_mangled_table_name(table)}__#{column}"
         rtrigger_name = opts[:referenced_trigger_name] || "pgt_rfka_#{column}"
-        rfunction_name = opts[:referenced_function_name] || "pgt_rfka_#{table}__#{column}"
+        rfunction_name = opts[:referenced_function_name] || "pgt_rfka_#{pgt_mangled_table_name(table)}__#{column}"
         col = quote_identifier(column)
         tab = quote_identifier(table)
         rcol = quote_identifier(rcolumn)
@@ -323,6 +323,11 @@ module Sequel
       def pgt_trigger(table, trigger_name, function_name, events, definition, opts={})
         create_function(function_name, definition, :language=>:plpgsql, :returns=>:trigger, :replace=>true)
         create_trigger(table, trigger_name, function_name, :events=>events, :each_row=>true, :after=>opts[:after])
+      end
+
+      # Mangle the schema name so it can be used in an unquoted_identifier
+      def pgt_mangled_table_name(table)
+        quote_schema_table(table).gsub('"', '').gsub(/[^A-Za-z0-9]/, '_').gsub(/_+/, '_')
       end
     end
 
