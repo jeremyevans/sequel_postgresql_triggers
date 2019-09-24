@@ -4,7 +4,7 @@ require 'sequel'
 
 ENV['MT_NO_PLUGINS'] = '1' # Work around stupid autoloading of plugins
 gem 'minitest'
-require 'minitest/autorun'
+require 'minitest/global_expectations/autorun'
 
 DB = Sequel.connect(ENV['PGT_SPEC_DB']||'postgres:///spgt_test?user=postgres')
 
@@ -630,7 +630,7 @@ describe "PostgreSQL JSON Audit Logging" do
     @ds.update(:id=>2, :a=>3)
     @ds.all.must_equal [{:id=>2, :a=>3}]
     h = @logs.first
-    h.delete(:at).to_i.must_be_within_delta(10, DB.get(Sequel::CURRENT_TIMESTAMP).to_i)
+    h.delete(:at).to_i.must_be_close_to(10, DB.get(Sequel::CURRENT_TIMESTAMP).to_i)
     h.delete(:user).must_be_kind_of(String)
     txid1 = h.delete(:txid)
     txid1.must_be_kind_of(Integer)
@@ -639,7 +639,7 @@ describe "PostgreSQL JSON Audit Logging" do
     @ds.delete
     @ds.all.must_equal []
     h = @logs.first
-    h.delete(:at).to_i.must_be_within_delta(10, DB.get(Sequel::CURRENT_TIMESTAMP).to_i)
+    h.delete(:at).to_i.must_be_close_to(10, DB.get(Sequel::CURRENT_TIMESTAMP).to_i)
     h.delete(:user).must_be_kind_of(String)
     txid2 = h.delete(:txid)
     txid2.must_be_kind_of(Integer)
