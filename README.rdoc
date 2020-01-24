@@ -126,7 +126,7 @@ sum cache that sums the length of a string column.
 
 Arguments:
 main_table :: name of table holding counter cache column
-main_table_id_column :: column in main table matching counted_table_id_column in counted_table
+main_table_id_column :: column in main table matching summed_table_id_column in summed_table
 sum_column :: column in main table containing the sum cache
 summed_table :: name of table being summed
 summed_table_id_column :: column in summed_table matching main_table_id_column in main_table
