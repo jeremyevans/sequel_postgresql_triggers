@@ -624,7 +624,7 @@ describe "PostgreSQL JSON Audit Logging" do
     DB.drop_function(:spgt_audit_log)
   end
 
-  it "should previous values in JSON format for inserts and updates" do
+  it "should previous values in JSON format for updates and deletes" do
     @logs.first.must_be_nil
 
     @ds.update(:id=>2, :a=>3)
