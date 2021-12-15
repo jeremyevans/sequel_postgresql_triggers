@@ -20,16 +20,18 @@ rdoc_task_class.new do |rdoc|
   rdoc.rdoc_files.add %w"README.rdoc MIT-LICENSE lib/sequel_postgresql_triggers.rb lib/sequel/extensions/pg_triggers.rb"
 end
 
+test_flags = "-w" if RUBY_VERSION >= '3'
+
 desc "Run specs with extension"
 task :spec do
-  sh "#{FileUtils::RUBY} -I lib spec/sequel_postgresql_triggers_spec.rb"
+  sh "#{FileUtils::RUBY} #{test_flags} -I lib spec/sequel_postgresql_triggers_spec.rb"
 end
 
 desc "Run specs with global modification"
 task :spec_global do
   begin
     ENV['PGT_GLOBAL'] = '1'
-    sh "#{FileUtils::RUBY} -I lib spec/sequel_postgresql_triggers_spec.rb"
+    sh "#{FileUtils::RUBY} #{test_flags} -I lib spec/sequel_postgresql_triggers_spec.rb"
   ensure
     ENV.delete('PGT_GLOBAL')
   end
