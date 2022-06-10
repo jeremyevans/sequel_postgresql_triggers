@@ -1,2 +1,3 @@
-rdoc
-*.gem
+/rdoc
+/coverage
+/*.gem

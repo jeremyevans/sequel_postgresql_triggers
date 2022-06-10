@@ -24,14 +24,14 @@ test_flags = "-w" if RUBY_VERSION >= '3'
 
 desc "Run specs with extension"
 task :spec do
-  sh "#{FileUtils::RUBY} #{test_flags} -I lib spec/sequel_postgresql_triggers_spec.rb"
+  sh "#{FileUtils::RUBY} #{test_flags} spec/sequel_postgresql_triggers_spec.rb"
 end
 
 desc "Run specs with global modification"
 task :spec_global do
   begin
     ENV['PGT_GLOBAL'] = '1'
-    sh "#{FileUtils::RUBY} #{test_flags} -I lib spec/sequel_postgresql_triggers_spec.rb"
+    sh "#{FileUtils::RUBY} #{test_flags} spec/sequel_postgresql_triggers_spec.rb"
   ensure
     ENV.delete('PGT_GLOBAL')
   end
@@ -39,6 +39,15 @@ end
 
 desc "Run all specs"
 task :default => [:spec, :spec_global]
+
+desc "Run specs with coverage"
+task :spec_cov do
+  ENV["COVERAGE"] = "extension"
+  Rake::Task['spec'].invoke
+  ENV["COVERAGE"] = "global"
+  Rake::Task['spec_global'].invoke
+  ENV.delete('COVERAGE')
+end
 
 desc "Package sequel_postgresql_triggers"
 task :package do

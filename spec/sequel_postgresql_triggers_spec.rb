@@ -1,6 +1,17 @@
 #!/usr/bin/env ruby
-require 'rubygems'
 require 'sequel'
+
+if coverage = ENV.delete('COVERAGE')
+  require 'simplecov'
+
+  SimpleCov.start do
+    enable_coverage :branch
+    command_name coverage
+    add_filter "/spec/"
+    add_group('Missing'){|src| src.covered_percent < 100}
+    add_group('Covered'){|src| src.covered_percent == 100}
+  end
+end
 
 ENV['MT_NO_PLUGINS'] = '1' # Work around stupid autoloading of plugins
 gem 'minitest'
@@ -126,6 +137,23 @@ describe "PostgreSQL Immutable Trigger" do
     DB[:accounts].insert(:id=>1, :balance=>nil)
     DB[:accounts].update(:balance=>nil)
     proc{DB[:accounts].update(:balance=>0)}.must_raise(Sequel::DatabaseError)
+  end
+end
+
+describe "PostgreSQL Immutable Trigger" do
+  before do
+    DB.create_table(:accounts){integer :id; integer :balance, :default=>0}
+    DB.pgt_immutable(:accounts, :balance)
+    DB[:accounts].insert(:id=>1)
+  end
+
+  after do
+    DB.drop_table(:accounts)
+    DB.drop_function(:pgt_im_balance)
+  end
+
+  it "should work when called without options" do
+    DB[:accounts].update(:id=>2)
   end
 end
 
