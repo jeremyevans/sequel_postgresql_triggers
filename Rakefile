@@ -49,6 +49,12 @@ task :spec_cov do
   ENV.delete('COVERAGE')
 end
 
+desc "Run specs in CI"
+task :spec_ci do
+  ENV['PGT_SPEC_DB'] = "#{RUBY_ENGINE == 'jruby' ? 'jdbc:postgresql' : 'postgres'}://localhost/?user=postgres&password=postgres"
+  Rake::Task['default'].invoke
+end
+
 desc "Package sequel_postgresql_triggers"
 task :package do
   sh %{gem build sequel_postgresql_triggers.gemspec}
