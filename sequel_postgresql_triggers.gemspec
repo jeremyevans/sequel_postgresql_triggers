@@ -11,5 +11,6 @@ spec = Gem::Specification.new do |s|
   s.rdoc_options = ['--inline-source', '--line-numbers', '--title', 'Sequel PostgreSQL Triggers: Database enforced timestamps, immutable columns, and counter/sum caches', 'README.rdoc', 'MIT-LICENSE', 'lib']
   s.required_ruby_version = ">= 1.9.2"
   s.add_dependency('sequel')
+  s.add_development_dependency "minitest", '>= 5'
   s.add_development_dependency "minitest-global_expectations"
 end
