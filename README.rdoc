@@ -254,6 +254,13 @@ function :: The name of the trigger function to call to log changes
 Note that it is probably a bad idea to use the same table argument
 to both +pgt_json_audit_log_setup+ and +pgt_json_audit_log+.
 
+== Caveats
+
+When restoring a data-only migration with +pg_dump+, you may need to
+use <tt>--disable-triggers</tt> for it to restore correctly, and you
+will need to manually enforce data integrity if you are doing
+partial restores and not full restores.
+
 == License
 
 This library is released under the MIT License.  See the MIT-LICENSE
