@@ -3,7 +3,12 @@
 source 'http://rubygems.org'
 
 gem 'minitest-global_expectations'
-gem 'sequel'
+
+if RUBY_VERSION < '2.0'
+  gem 'sequel', '< 5.72'
+else
+  gem 'sequel'
+end
 
 if RUBY_VERSION < '2.0.0'
   gem 'rake', '<10.0.0'
