@@ -14,7 +14,7 @@ module Sequel
         main_column = quote_identifier(main_table_id_column)
         count_column = quote_identifier(counter_column)
 
-        pgt_trigger(counted_table, trigger_name, function_name, [:insert, :update, :delete], <<-SQL)
+        pgt_trigger(counted_table, trigger_name, function_name, [:insert, :update, :delete], <<-SQL, :after=>true)
         BEGIN
           IF (TG_OP = 'UPDATE' AND (NEW.#{id_column} = OLD.#{id_column} OR (OLD.#{id_column} IS NULL AND NEW.#{id_column} IS NULL))) THEN
             RETURN NEW;
@@ -122,7 +122,7 @@ module Sequel
         main_column = quote_identifier(main_table_id_column)
         sum_column = quote_identifier(sum_column)
 
-        pgt_trigger(summed_table, trigger_name, function_name, [:insert, :delete, :update], <<-SQL)
+        pgt_trigger(summed_table, trigger_name, function_name, [:insert, :delete, :update], <<-SQL, :after=>true)
         BEGIN
           IF (TG_OP = 'UPDATE' AND NEW.#{id_column} = OLD.#{id_column}) THEN
             UPDATE #{table} SET #{sum_column} = #{sum_column} + #{new_table_summed_column} - #{old_table_summed_column} WHERE #{main_column} = NEW.#{id_column};
@@ -176,7 +176,7 @@ module Sequel
         main_table_fk_column = quote_schema_table(main_table_fk_column)
         summed_table_fk_column = quote_schema_table(summed_table_fk_column)
 
-        pgt_trigger(orig_summed_table, trigger_name, function_name, [:insert, :delete, :update], <<-SQL)
+        pgt_trigger(orig_summed_table, trigger_name, function_name, [:insert, :delete, :update], <<-SQL, :after=>true)
         BEGIN
           IF (TG_OP = 'UPDATE' AND NEW.#{summed_table_id_column} = OLD.#{summed_table_id_column}) THEN
             UPDATE #{main_table} SET #{sum_column} = #{sum_column} + #{new_table_summed_column} - #{old_table_summed_column} WHERE #{main_table_id_column} IN (SELECT #{main_table_fk_column} FROM #{join_table} WHERE #{summed_table_fk_column} = NEW.#{summed_table_id_column});
@@ -195,7 +195,7 @@ module Sequel
         END;
         SQL
 
-        pgt_trigger(orig_join_table, join_trigger_name, join_function_name, [:insert, :delete, :update], <<-SQL)
+        pgt_trigger(orig_join_table, join_trigger_name, join_function_name, [:insert, :delete, :update], <<-SQL, :after=>true)
         BEGIN
           IF (NOT (TG_OP = 'UPDATE' AND NEW.#{main_table_fk_column} = OLD.#{main_table_fk_column} AND NEW.#{summed_table_fk_column} = OLD.#{summed_table_fk_column})) THEN
             IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN

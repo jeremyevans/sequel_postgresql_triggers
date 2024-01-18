@@ -43,6 +43,14 @@ describe "PostgreSQL Counter Cache Trigger" do
     DB.drop_function(:spgt_counter_cache)
   end
 
+  it "should not modify counter cache if adding/removing records fails due to ON CONFLICT DO NOTHING" do
+    DB.alter_table(:entries){add_unique_constraint :account_id}
+    DB[:entries].insert(:id=>1, :account_id=>1)
+    DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 0]
+    DB[:entries].insert_conflict.insert(:id=>1, :account_id=>1)
+    DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 0]
+  end
+
   it "should modify counter cache when adding or removing records" do
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [0, 0]
 
@@ -171,6 +179,14 @@ describe "PostgreSQL Sum Cache Trigger" do
     DB.drop_function(:spgt_sum_cache)
   end
 
+  it "should not modify sum cache if adding/removing records fails due to ON CONFLICT DO NOTHING" do
+    DB.alter_table(:entries){add_unique_constraint :account_id}
+    DB[:entries].insert(:id=>1, :account_id=>1, :amount=>5)
+    DB[:accounts].order(:id).select_map(:balance).must_equal [5, 0]
+    DB[:entries].insert_conflict.insert(:id=>1, :account_id=>1, :amount=>10)
+    DB[:accounts].order(:id).select_map(:balance).must_equal [5, 0]
+  end
+
   it "should modify sum cache when adding, updating, or removing records" do
     DB[:accounts].order(:id).select_map(:balance).must_equal [0, 0]
 
@@ -292,6 +308,17 @@ describe "PostgreSQL Sum Through Many Cache Trigger" do
     DB.drop_table(:links, :parents, :children)
     DB.drop_function(:spgt_stm_cache)
     DB.drop_function(:spgt_stm_cache_join)
+  end
+
+  it "should not modify sum cache if adding/removing records fails due to ON CONFLICT DO NOTHING" do
+    DB.alter_table(:children){add_unique_constraint :amount}
+    DB[:children].insert(:id=>1, :amount=>5)
+    DB[:links].insert(:parent_id=>1, :child_id=>1)
+    DB[:parents].order(:id).select_map(:balance).must_equal [5, 0]
+    DB[:children].insert_conflict.insert(:id=>1, :amount=>5)
+    DB[:parents].order(:id).select_map(:balance).must_equal [5, 0]
+    DB[:links].insert_conflict.insert(:parent_id=>1, :child_id=>1)
+    DB[:parents].order(:id).select_map(:balance).must_equal [5, 0]
   end
 
   it "should modify sum cache when adding, updating, or removing records" do
@@ -487,6 +514,17 @@ describe "PostgreSQL Touch Trigger" do
     DB.drop_table(:children, :parents)
     DB.drop_function(:spgt_touch)
     DB.drop_function(:spgt_touch2) if @spgt_touch2
+  end
+
+  it "should not modify timestamp column of related table if adding/removing records fails due to ON CONFLICT DO NOTHING" do
+    DB.pgt_touch(:children, :parents, :changed_on, {:id1=>:parent_id1}, :function_name=>:spgt_touch)
+    DB.alter_table(:children){add_unique_constraint :parent_id1}
+    d30 = Date.today - 30
+    DB[:children].insert(:id=>1, :parent_id1=>1)
+    DB[:parents].insert(:id1=>1, :changed_on=>d30)
+    DB[:parents].get(:changed_on).to_date.must_equal d30
+    DB[:children].insert_conflict.insert(:id=>1, :parent_id1=>1)
+    DB[:parents].get(:changed_on).to_date.must_equal d30
   end
 
   it "should update the timestamp column of the related table when adding, updating or removing records" do
