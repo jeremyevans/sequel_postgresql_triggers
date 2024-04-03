@@ -158,6 +158,7 @@ module Sequel
         function_name = opts[:function_name] || "pgt_stmc_#{pgt_mangled_table_name(main_table)}__#{main_table_id_column}__#{sum_column}__#{pgt_mangled_table_name(summed_table)}__#{summed_table_id_column}#{summed_column_slug}__#{pgt_mangled_table_name(join_table)}__#{main_table_fk_column}__#{summed_table_fk_column}"
         join_trigger_name = opts[:join_trigger_name] || "pgt_stmc_join_#{pgt_mangled_table_name(main_table)}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}#{summed_column_slug}__#{main_table_fk_column}__#{summed_table_fk_column}"
         join_function_name = opts[:join_function_name] || "pgt_stmc_join_#{pgt_mangled_table_name(main_table)}__#{main_table_id_column}__#{sum_column}__#{pgt_mangled_table_name(summed_table)}__#{summed_table_id_column}#{summed_column_slug}__#{pgt_mangled_table_name(join_table)}__#{main_table_fk_column}__#{summed_table_fk_column}"
+        prevent_depth = opts[:prevent_depth]
 
         orig_summed_table = summed_table
         orig_join_table = join_table
@@ -178,6 +179,7 @@ module Sequel
 
         pgt_trigger(orig_summed_table, trigger_name, function_name, [:insert, :delete, :update], <<-SQL, :after=>true)
         BEGIN
+          #{pgt_pg_trigger_depth_guard_clause if prevent_depth}
           IF (TG_OP = 'UPDATE' AND NEW.#{summed_table_id_column} = OLD.#{summed_table_id_column}) THEN
             UPDATE #{main_table} SET #{sum_column} = #{sum_column} + #{new_table_summed_column} - #{old_table_summed_column} WHERE #{main_table_id_column} IN (SELECT #{main_table_fk_column} FROM #{join_table} WHERE #{summed_table_fk_column} = NEW.#{summed_table_id_column});
           ELSE
@@ -328,6 +330,14 @@ module Sequel
       # Mangle the schema name so it can be used in an unquoted_identifier
       def pgt_mangled_table_name(table)
         quote_schema_table(table).gsub('"', '').gsub(/[^A-Za-z0-9]/, '_').gsub(/_+/, '_')
+      end
+
+      def pgt_pg_trigger_depth_guard_clause
+        <<-SQL
+        IF pg_trigger_depth() <> 1 THEN
+            RETURN NEW;
+          END IF;
+        SQL
       end
     end
 
