@@ -178,6 +178,9 @@ module Sequel
 
         pgt_trigger(orig_summed_table, trigger_name, function_name, [:insert, :delete, :update], <<-SQL, :after=>true)
         BEGIN
+          IF pg_trigger_depth() <> 1 THEN
+            RETURN NEW;
+          END IF;
           IF (TG_OP = 'UPDATE' AND NEW.#{summed_table_id_column} = OLD.#{summed_table_id_column}) THEN
             UPDATE #{main_table} SET #{sum_column} = #{sum_column} + #{new_table_summed_column} - #{old_table_summed_column} WHERE #{main_table_id_column} IN (SELECT #{main_table_fk_column} FROM #{join_table} WHERE #{summed_table_fk_column} = NEW.#{summed_table_id_column});
           ELSE

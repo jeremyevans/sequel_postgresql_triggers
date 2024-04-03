@@ -25,7 +25,7 @@ if ENV['PGT_GLOBAL'] == '1'
   require 'sequel_postgresql_triggers'
 else
   puts "Running specs with extension"
-  DB.extension :pg_triggers 
+  DB.extension :pg_triggers
 end
 DB.extension :pg_array
 
@@ -59,31 +59,31 @@ describe "PostgreSQL Counter Cache Trigger" do
 
     DB[:entries].insert(:id=>2, :account_id=>1)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [2, 0]
-    
+
     DB[:entries].insert(:id=>3, :account_id=>nil)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [2, 0]
-    
+
     DB[:entries].where(:id=>3).update(:account_id=>2)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [2, 1]
-    
+
     DB[:entries].where(:id=>2).update(:account_id=>2)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 2]
-    
+
     DB[:entries].where(:id=>2).update(:account_id=>nil)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 1]
-    
+
     DB[:entries].where(:id=>2).update(:id=>4)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 1]
-    
+
     DB[:entries].where(:id=>4).update(:account_id=>2)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 2]
-    
+
     DB[:entries].where(:id=>4).update(:account_id=>nil)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 1]
-    
+
     DB[:entries].filter(:id=>4).delete
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 1]
-    
+
     DB[:entries].delete
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [0, 0]
   end
@@ -195,34 +195,34 @@ describe "PostgreSQL Sum Cache Trigger" do
 
     DB[:entries].insert(:id=>2, :account_id=>1, :amount=>200)
     DB[:accounts].order(:id).select_map(:balance).must_equal [300, 0]
-    
+
     DB[:entries].insert(:id=>3, :account_id=>nil, :amount=>500)
     DB[:accounts].order(:id).select_map(:balance).must_equal [300, 0]
-    
+
     DB[:entries].where(:id=>3).update(:account_id=>2)
     DB[:accounts].order(:id).select_map(:balance).must_equal [300, 500]
-    
+
     DB[:entries].exclude(:id=>2).update(:amount=>Sequel.*(:amount, 2))
     DB[:accounts].order(:id).select_map(:balance).must_equal [400, 1000]
-    
+
     DB[:entries].where(:id=>2).update(:account_id=>2)
     DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1200]
-    
+
     DB[:entries].where(:id=>2).update(:account_id=>nil)
     DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1000]
-    
+
     DB[:entries].where(:id=>2).update(:id=>4)
     DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1000]
-    
+
     DB[:entries].where(:id=>4).update(:account_id=>2)
     DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1200]
-    
+
     DB[:entries].where(:id=>4).update(:account_id=>nil)
     DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1000]
-    
+
     DB[:entries].filter(:id=>4).delete
     DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1000]
-    
+
     DB[:entries].delete
     DB[:accounts].order(:id).select_map(:balance).must_equal [0, 0]
   end
@@ -478,6 +478,73 @@ describe "PostgreSQL Sum Through Many Cache Trigger with arbitrary expression" d
 
     DB[:links].delete
     DB[:parents].order(:id).select_map(:nonzero_entries_count).must_equal [0, 0]
+  end
+end
+
+describe "PostgreSQL Sum Through Many Cache Trigger with circular relation" do
+  before do
+    DB.create_table(:people) do
+      primary_key :id;
+      integer :amount, :null=>false, :default=>0;
+      integer :nonzero_entries_count, :default=>0, :null=>false
+    end
+    DB.create_table(:followings){integer :followee_id, :null=>false; integer :follower_id, :null=>false;}
+    DB.pgt_sum_through_many_cache(
+      :main_table=>:people,
+      :sum_column=>:nonzero_entries_count,
+      :summed_table=>:people,
+      :summed_column=>Sequel.case({0=>0}, 1, :amount),
+      :join_table=>:followings,
+      :main_table_fk_column=>:followee_id,
+      :summed_table_fk_column=>:follower_id,
+      :function_name=>:spgt_stm_cache,
+      :join_function_name=>:spgt_stm_cache_join
+    )
+    DB[:people].insert(:id=>1)
+    DB[:people].insert(:id=>2)
+  end
+
+  after do
+    DB.drop_table(:followings, :people)
+    DB.drop_function(:spgt_stm_cache)
+    DB.drop_function(:spgt_stm_cache_join)
+  end
+
+  it "should count mutual reference" do
+    DB[:people].order(:id).select_map(:nonzero_entries_count).must_equal [0, 0]
+    DB[:followings].insert(:followee_id=>1, :follower_id=>2)
+    DB[:followings].insert(:followee_id=>2, :follower_id=>1)
+    DB[:people].order(:id).select_map(:nonzero_entries_count).must_equal [0, 0]
+    DB[:people].update(:amount=>1)
+    DB[:people].order(:id).select_map(:nonzero_entries_count).must_equal [1, 1]
+  end
+
+  it "should modify sum cache when adding, updating, or removing join records and records" do
+    DB[:people].order(:id).select_map(:nonzero_entries_count).must_equal [0, 0]
+
+    DB[:people].update(:amount=>1)
+    DB[:people].order(:id).select_map(:nonzero_entries_count).must_equal [0, 0]
+
+    DB[:followings].insert(:followee_id=>1, :follower_id=>2)
+    DB[:people].order(:id).select_map(:nonzero_entries_count).must_equal [1, 0]
+
+    DB[:followings].where(:followee_id=>1, :follower_id=>2).update(:followee_id=>2, :follower_id=>1)
+    DB[:people].order(:id).select_map(:nonzero_entries_count).must_equal [0, 1]
+
+    DB[:followings].where(:followee_id=>2, :follower_id=>1).delete
+    DB[:people].order(:id).select_map(:nonzero_entries_count).must_equal [0, 0]
+
+    DB[:people].insert(:id=>3)
+    DB[:followings].insert(:followee_id=>1, :follower_id=>2)
+    DB[:followings].insert(:followee_id=>1, :follower_id=>3)
+    DB[:followings].insert(:followee_id=>2, :follower_id=>3)
+    DB[:people].order(:id).select_map(:nonzero_entries_count).must_equal [1, 0, 0]
+
+    DB[:people].where(:id=>3).update(:amount=>1000)
+    DB[:people].order(:id).select_map(:nonzero_entries_count).must_equal [2, 1, 0]
+
+    DB[:people].where(:id=>3).delete
+    DB[:people].order(:id).select_map(:nonzero_entries_count).must_equal [1, 0]
   end
 end
 
