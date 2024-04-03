@@ -42,6 +42,7 @@ module Sequel
         col = quote_identifier(column)
         pgt_trigger(table, trigger_name, function_name, [:insert, :update], <<-SQL)
         BEGIN
+        #{pgt_pg_trigger_depth_guard_clause(opts[:prevent_depth])}
           IF (TG_OP = 'UPDATE') THEN
             NEW.#{col} := OLD.#{col};
           ELSIF (TG_OP = 'INSERT') THEN
@@ -61,6 +62,7 @@ module Sequel
         end
         pgt_trigger(table, trigger_name, function_name, [:insert], <<-SQL)
         BEGIN
+          #{pgt_pg_trigger_depth_guard_clause(opts[:prevent_depth])}
           #{lines.join("\n")}
           RETURN NEW;
         END;
@@ -96,6 +98,7 @@ module Sequel
         end
         create_function(function_name, (<<-SQL), {:language=>:plpgsql, :returns=>:trigger, :replace=>true}.merge(opts[:function_opts]||{}))
         BEGIN
+          #{pgt_pg_trigger_depth_guard_clause(opts[:prevent_depth])}
           INSERT INTO #{quote_schema_table(table)} (txid, at, "user", "schema", "table", action, prior) VALUES
           (txid_current(), CURRENT_TIMESTAMP, CURRENT_USER, TG_TABLE_SCHEMA, TG_TABLE_NAME, TG_OP, to_jsonb(OLD));
           IF (TG_OP = 'DELETE') THEN
@@ -160,7 +163,6 @@ module Sequel
         function_name = opts[:function_name] || "pgt_stmc_#{pgt_mangled_table_name(main_table)}__#{main_table_id_column}__#{sum_column}__#{pgt_mangled_table_name(summed_table)}__#{summed_table_id_column}#{summed_column_slug}__#{pgt_mangled_table_name(join_table)}__#{main_table_fk_column}__#{summed_table_fk_column}"
         join_trigger_name = opts[:join_trigger_name] || "pgt_stmc_join_#{pgt_mangled_table_name(main_table)}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}#{summed_column_slug}__#{main_table_fk_column}__#{summed_table_fk_column}"
         join_function_name = opts[:join_function_name] || "pgt_stmc_join_#{pgt_mangled_table_name(main_table)}__#{main_table_id_column}__#{sum_column}__#{pgt_mangled_table_name(summed_table)}__#{summed_table_id_column}#{summed_column_slug}__#{pgt_mangled_table_name(join_table)}__#{main_table_fk_column}__#{summed_table_fk_column}"
-        prevent_depth = opts[:prevent_depth]
 
         orig_summed_table = summed_table
         orig_join_table = join_table
@@ -181,7 +183,7 @@ module Sequel
 
         pgt_trigger(orig_summed_table, trigger_name, function_name, [:insert, :delete, :update], <<-SQL, :after=>true)
         BEGIN
-          #{pgt_pg_trigger_depth_guard_clause(prevent_depth)}
+          #{pgt_pg_trigger_depth_guard_clause(opts[:prevent_depth])}
           IF (TG_OP = 'UPDATE' AND NEW.#{summed_table_id_column} = OLD.#{summed_table_id_column}) THEN
             UPDATE #{main_table} SET #{sum_column} = #{sum_column} + #{new_table_summed_column} - #{old_table_summed_column} WHERE #{main_table_id_column} IN (SELECT #{main_table_fk_column} FROM #{join_table} WHERE #{summed_table_fk_column} = NEW.#{summed_table_id_column});
           ELSE
