@@ -16,7 +16,7 @@ module Sequel
 
         pgt_trigger(counted_table, trigger_name, function_name, [:insert, :update, :delete], <<-SQL, :after=>true)
         BEGIN
-          #{pgt_pg_trigger_depth_guard_clause(opts[:prevent_depth])}
+          #{pgt_pg_trigger_depth_guard_clause(opts)}
           IF (TG_OP = 'UPDATE' AND (NEW.#{id_column} = OLD.#{id_column} OR (OLD.#{id_column} IS NULL AND NEW.#{id_column} IS NULL))) THEN
             RETURN NEW;
           ELSE
@@ -96,6 +96,7 @@ module Sequel
         end
         create_function(function_name, (<<-SQL), {:language=>:plpgsql, :returns=>:trigger, :replace=>true}.merge(opts[:function_opts]||{}))
         BEGIN
+          #{pgt_pg_trigger_depth_guard_clause(opts)}
           INSERT INTO #{quote_schema_table(table)} (txid, at, "user", "schema", "table", action, prior) VALUES
           (txid_current(), CURRENT_TIMESTAMP, CURRENT_USER, TG_TABLE_SCHEMA, TG_TABLE_NAME, TG_OP, to_jsonb(OLD));
           IF (TG_OP = 'DELETE') THEN
@@ -125,7 +126,7 @@ module Sequel
 
         pgt_trigger(summed_table, trigger_name, function_name, [:insert, :delete, :update], <<-SQL, :after=>true)
         BEGIN
-          #{pgt_pg_trigger_depth_guard_clause(opts[:prevent_depth])}
+          #{pgt_pg_trigger_depth_guard_clause(opts)}
           IF (TG_OP = 'UPDATE' AND NEW.#{id_column} = OLD.#{id_column}) THEN
             UPDATE #{table} SET #{sum_column} = #{sum_column} + #{new_table_summed_column} - #{old_table_summed_column} WHERE #{main_column} = NEW.#{id_column};
           ELSE
@@ -160,7 +161,6 @@ module Sequel
         function_name = opts[:function_name] || "pgt_stmc_#{pgt_mangled_table_name(main_table)}__#{main_table_id_column}__#{sum_column}__#{pgt_mangled_table_name(summed_table)}__#{summed_table_id_column}#{summed_column_slug}__#{pgt_mangled_table_name(join_table)}__#{main_table_fk_column}__#{summed_table_fk_column}"
         join_trigger_name = opts[:join_trigger_name] || "pgt_stmc_join_#{pgt_mangled_table_name(main_table)}__#{main_table_id_column}__#{sum_column}__#{summed_table_id_column}#{summed_column_slug}__#{main_table_fk_column}__#{summed_table_fk_column}"
         join_function_name = opts[:join_function_name] || "pgt_stmc_join_#{pgt_mangled_table_name(main_table)}__#{main_table_id_column}__#{sum_column}__#{pgt_mangled_table_name(summed_table)}__#{summed_table_id_column}#{summed_column_slug}__#{pgt_mangled_table_name(join_table)}__#{main_table_fk_column}__#{summed_table_fk_column}"
-        prevent_depth = opts[:prevent_depth]
 
         orig_summed_table = summed_table
         orig_join_table = join_table
@@ -181,7 +181,7 @@ module Sequel
 
         pgt_trigger(orig_summed_table, trigger_name, function_name, [:insert, :delete, :update], <<-SQL, :after=>true)
         BEGIN
-          #{pgt_pg_trigger_depth_guard_clause(prevent_depth)}
+          #{pgt_pg_trigger_depth_guard_clause(opts)}
           IF (TG_OP = 'UPDATE' AND NEW.#{summed_table_id_column} = OLD.#{summed_table_id_column}) THEN
             UPDATE #{main_table} SET #{sum_column} = #{sum_column} + #{new_table_summed_column} - #{old_table_summed_column} WHERE #{main_table_id_column} IN (SELECT #{main_table_fk_column} FROM #{join_table} WHERE #{summed_table_fk_column} = NEW.#{summed_table_id_column});
           ELSE
@@ -201,6 +201,7 @@ module Sequel
 
         pgt_trigger(orig_join_table, join_trigger_name, join_function_name, [:insert, :delete, :update], <<-SQL, :after=>true)
         BEGIN
+          #{pgt_pg_trigger_depth_guard_clause(opts)}
           IF (NOT (TG_OP = 'UPDATE' AND NEW.#{main_table_fk_column} = OLD.#{main_table_fk_column} AND NEW.#{summed_table_fk_column} = OLD.#{summed_table_fk_column})) THEN
             IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
               UPDATE #{main_table} SET #{sum_column} = #{sum_column} + (SELECT #{general_summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = NEW.#{summed_table_fk_column}) WHERE #{main_table_id_column} = NEW.#{main_table_fk_column};
@@ -229,6 +230,7 @@ module Sequel
 
         sql = <<-SQL
           BEGIN
+            #{pgt_pg_trigger_depth_guard_clause(opts)}
             IF (TG_OP = 'UPDATE' AND (#{same_id})) THEN
               #{update['NEW']}
             ELSE
@@ -334,11 +336,14 @@ module Sequel
         quote_schema_table(table).gsub('"', '').gsub(/[^A-Za-z0-9]/, '_').gsub(/_+/, '_')
       end
 
-      def pgt_pg_trigger_depth_guard_clause(prevent_depth)
-        return unless prevent_depth
-        prevent_depth = 1 if true == prevent_depth
+      def pgt_pg_trigger_depth_guard_clause(opts)
+        return unless depth_limit = opts[:trigger_depth_limit]
+        depth_limit = 1 if true == depth_limit
+        depth_limit = depth_limit.to_i
+        raise ArgumentError, ":trigger_depth_limit option must be at least 1" unless depth_limit >= 1
+
         <<-SQL
-        IF pg_trigger_depth() > #{prevent_depth} THEN
+        IF pg_trigger_depth() > #{depth_limit} THEN
             RETURN NEW;
           END IF;
         SQL

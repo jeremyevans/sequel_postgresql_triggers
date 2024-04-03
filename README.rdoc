@@ -69,6 +69,17 @@ in their opts hash:
 :trigger_name :: The name of the trigger to use.  This is important
                  to specify if you want an easy way to drop the trigger.
 
+Methods that create trigger functions which can result in additional
+triggers firing (due to INSERT/UPDATE/DELETE queries) also take the
+following option:
+
+:trigger_depth_limit :: If given, should be an integer specifying the
+                        maximum trigger depth that the trigger will
+                        operate under.  Any higher depth will result
+                        in the trigger silently exiting. This can be
+                        used to prevent unbounded trigger recursion.
+                        A value of true is interpreted as 1.
+
 === Created At Columns - pgt_created_at
 
 pgt_created_at takes the table and column given and makes it so that
