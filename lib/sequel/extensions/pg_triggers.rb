@@ -201,6 +201,7 @@ module Sequel
 
         pgt_trigger(orig_join_table, join_trigger_name, join_function_name, [:insert, :delete, :update], <<-SQL, :after=>true)
         BEGIN
+          #{pgt_pg_trigger_depth_guard_clause(opts[:prevent_depth])}
           IF (NOT (TG_OP = 'UPDATE' AND NEW.#{main_table_fk_column} = OLD.#{main_table_fk_column} AND NEW.#{summed_table_fk_column} = OLD.#{summed_table_fk_column})) THEN
             IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
               UPDATE #{main_table} SET #{sum_column} = #{sum_column} + (SELECT #{general_summed_column} FROM #{summed_table} WHERE #{summed_table_id_column} = NEW.#{summed_table_fk_column}) WHERE #{main_table_id_column} = NEW.#{main_table_fk_column};
@@ -229,6 +230,7 @@ module Sequel
 
         sql = <<-SQL
           BEGIN
+            #{pgt_pg_trigger_depth_guard_clause(opts[:prevent_depth])}
             IF (TG_OP = 'UPDATE' AND (#{same_id})) THEN
               #{update['NEW']}
             ELSE
@@ -254,6 +256,7 @@ module Sequel
         function_name = opts[:function_name] || "pgt_ua_#{pgt_mangled_table_name(table)}__#{column}"
         pgt_trigger(table, trigger_name, function_name, [:insert, :update], <<-SQL)
         BEGIN
+          #{pgt_pg_trigger_depth_guard_clause(opts[:prevent_depth])}
           NEW.#{quote_identifier(column)} := CURRENT_TIMESTAMP;
           RETURN NEW;
         END;
@@ -277,6 +280,7 @@ module Sequel
           temp_count1 int;
           temp_count2 int;
         BEGIN
+          #{pgt_pg_trigger_depth_guard_clause(opts[:prevent_depth])}
           arr := NEW.#{col};
           temp_count1 := array_ndims(arr);
           IF arr IS NULL OR temp_count1 IS NULL THEN
