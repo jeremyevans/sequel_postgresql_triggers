@@ -20,7 +20,9 @@ rdoc_task_class.new do |rdoc|
   rdoc.rdoc_files.add %w"README.rdoc MIT-LICENSE lib/sequel_postgresql_triggers.rb lib/sequel/extensions/pg_triggers.rb"
 end
 
-test_flags = "-w" if RUBY_VERSION >= '3'
+test_flags = String.new
+test_flags << " -w" if RUBY_VERSION >= '3'
+test_flags << " -W:strict_unused_block" if RUBY_VERSION >= '3.4'
 
 desc "Run specs with extension"
 task :spec do
