@@ -265,6 +265,55 @@ function :: The name of the trigger function to call to log changes
 Note that it is probably a bad idea to use the same table argument
 to both +pgt_json_audit_log_setup+ and +pgt_json_audit_log+.
 
+=== Transactional Outbox Events - pgt_outbox_setup and pgt_outbox_events
+
+These methods setup an outbox table and write events to it when
+writes happen to the watched table.
+
+==== pgt_outbox_setup
+
+This creates an outbox table and a trigger function that will write
+event data to the outbox table. This returns the name of the
+trigger function created, which should be passed to
++pgt_outbox_events+.
+
+Arguments:
+table :: The name of the table storing the audit logs.
+
+Options:
+function_name :: The name of the trigger function
+outbox_table :: The name for the outbox table. Defaults to table_outbox
+event_prefix :: The prefix to use for event_type, defaults to table_ (table_updated, table_created, table_deleted)
+boolean_completed_column :: If this is true, the :completed column will be boolean, otherwise it will be timestamptz
+uuid_primary_key :: Use a uuid type for the primary key of the outbox table
+uuid_function :: The pl/pgsql function name to use for generating a uuid pkey. defaults to :generate_uuid_v4
+function_opts :: Options to pass to +create_function+ when creating the trigger function.
+Column Name Options: (column type in parenthesis)
+created_column :: defaults to :created (timestamptz)
+updated_column :: defaults to :updated (timestamptz)
+attempts_column :: defaults to :attempts (Integer)
+attempted_column :: defaults to :attempted (timestamptz)
+completed_column :: defaults to :completed (Boolean or timestamptz, depending on :boolean_completed_column)
+event_type_column :: defaults to :event_type (String)
+last_error_column :: defaults to :last_error (String)
+data_before_column :: defaults to :data_before (jsonb)
+data_after_column :: defaults to :data_after (jsonb)
+metadata_column :: defaults to :metadata (jsonb)
+
+==== pgt_outbox_events
+
+This adds a trigger to the table that will store events in the outbox table
+when updates occur on the table (and match the filter).
+
+Arguments:
+table :: The name of the table to audit
+function :: The name of the trigger function to call to log changes (usually returned from pgt_outbox_setup)
+
+Options:
+events :: The events to care about. Defaults to [:updated, :deleted, :created] (all writes)
+trigger_name :: The name for the trigger
+when :: A filter for the trigger, where clause if you will
+
 == Caveats
 
 If you have defined counter or sum cache triggers using this library

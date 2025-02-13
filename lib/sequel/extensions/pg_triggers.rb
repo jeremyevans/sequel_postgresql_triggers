@@ -322,6 +322,70 @@ module Sequel
         SQL
       end
 
+      def pgt_outbox_setup(table, opts={})
+        function_name = opts.fetch(:function_name, "pgt_outbox_#{pgt_mangled_table_name(table)}")
+        outbox_table  = opts.fetch(:outbox_table, "#{table}_outbox")
+        quoted_outbox = quote_schema_table(outbox_table)
+        event_prefix  = opts.fetch(:event_prefix, table)
+        created_column = opts.fetch(:created_column, :created)
+        updated_column = opts.fetch(:updated_column, :updated)
+        event_type_column = opts.fetch(:event_type_column, :event_type)
+        data_after_column = opts.fetch(:data_after_column, :data_after)
+        data_before_column = opts.fetch(:data_before_column, :data_before)
+        boolean_completed_column = opts.fetch(:boolean_completed_column, false)
+        uuid_primary_key = opts.fetch(:uuid_primary_key, false)
+        run 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp"' if uuid_primary_key
+        create_table(outbox_table) do
+          if uuid_primary_key
+            uuid_function = opts.fetch(:uuid_function, :uuid_generate_v4)
+            uuid :id, default: Sequel.function(uuid_function), primary_key: true
+          else
+            primary_key :id
+          end
+          Integer opts.fetch(:attempts_column, :attempts), null: false, default: 0
+          column  created_column, :timestamptz
+          column  updated_column, :timestamptz
+          column  opts.fetch(:attempted_column, :attempted), :timestamptz
+          if boolean_completed_column
+            FalseClass opts.fetch(:completed_column, :completed), null: false, default: false
+          else
+            column     opts.fetch(:completed_column, :completed), :timestamptz
+          end
+          String event_type_column, null: false
+          String opts.fetch(:last_error_column, :last_error)
+          jsonb  data_before_column
+          jsonb  data_after_column
+          jsonb  opts.fetch(:metadata_column, :metadata)
+        end
+        pgt_created_at outbox_table, created_column
+        pgt_updated_at outbox_table, updated_column
+        create_function(function_name, (<<-SQL), {:language=>:plpgsql, :returns=>:trigger, :replace=>true}.merge(opts[:function_opts]||{}))
+        BEGIN
+          #{pgt_pg_trigger_depth_guard_clause(opts)}
+          IF (TG_OP = 'INSERT') THEN
+              INSERT INTO #{quoted_outbox} ("#{event_type_column}", "#{data_after_column}") VALUES
+              ('#{event_prefix}_created', to_jsonb(NEW));
+              RETURN NEW;
+          ELSIF (TG_OP = 'UPDATE') THEN
+              INSERT INTO #{quoted_outbox} ("#{event_type_column}", "#{data_before_column}", "#{data_after_column}") VALUES
+              ('#{event_prefix}_updated', to_jsonb(OLD), to_jsonb(NEW));
+              RETURN NEW;
+          ELSIF (TG_OP = 'DELETE') THEN
+              INSERT INTO #{quoted_outbox} ("#{event_type_column}", "#{data_before_column}") VALUES
+              ('#{event_prefix}_deleted', to_jsonb(OLD));
+              RETURN OLD;
+          END IF;
+        END;
+        SQL
+        function_name
+      end
+
+      def pgt_outbox_events(table, function, opts={})
+        events = opts.fetch(:events, [:insert, :update, :delete])
+        trigger_name = opts.fetch(:trigger_name, "pgt_outbox_#{pgt_mangled_table_name(table)}")
+        create_trigger(table, trigger_name, function, events: events, replace: true, each_row: true, after: true, when: opts[:when])
+      end
+
       private
 
       # Add or replace a function that returns trigger to handle the action,
