@@ -25,7 +25,7 @@ if ENV['PGT_GLOBAL'] == '1'
   require 'sequel_postgresql_triggers'
 else
   puts "Running specs with extension"
-  DB.extension :pg_triggers
+  DB.extension :pg_triggers 
 end
 DB.extension :pg_array
 
@@ -59,31 +59,31 @@ describe "PostgreSQL Counter Cache Trigger" do
 
     DB[:entries].insert(:id=>2, :account_id=>1)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [2, 0]
-
+    
     DB[:entries].insert(:id=>3, :account_id=>nil)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [2, 0]
-
+    
     DB[:entries].where(:id=>3).update(:account_id=>2)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [2, 1]
-
+    
     DB[:entries].where(:id=>2).update(:account_id=>2)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 2]
-
+    
     DB[:entries].where(:id=>2).update(:account_id=>nil)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 1]
-
+    
     DB[:entries].where(:id=>2).update(:id=>4)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 1]
-
+    
     DB[:entries].where(:id=>4).update(:account_id=>2)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 2]
-
+    
     DB[:entries].where(:id=>4).update(:account_id=>nil)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 1]
-
+    
     DB[:entries].filter(:id=>4).delete
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 1]
-
+    
     DB[:entries].delete
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [0, 0]
   end
@@ -195,34 +195,34 @@ describe "PostgreSQL Sum Cache Trigger" do
 
     DB[:entries].insert(:id=>2, :account_id=>1, :amount=>200)
     DB[:accounts].order(:id).select_map(:balance).must_equal [300, 0]
-
+    
     DB[:entries].insert(:id=>3, :account_id=>nil, :amount=>500)
     DB[:accounts].order(:id).select_map(:balance).must_equal [300, 0]
-
+    
     DB[:entries].where(:id=>3).update(:account_id=>2)
     DB[:accounts].order(:id).select_map(:balance).must_equal [300, 500]
-
+    
     DB[:entries].exclude(:id=>2).update(:amount=>Sequel.*(:amount, 2))
     DB[:accounts].order(:id).select_map(:balance).must_equal [400, 1000]
-
+    
     DB[:entries].where(:id=>2).update(:account_id=>2)
     DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1200]
-
+    
     DB[:entries].where(:id=>2).update(:account_id=>nil)
     DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1000]
-
+    
     DB[:entries].where(:id=>2).update(:id=>4)
     DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1000]
-
+    
     DB[:entries].where(:id=>4).update(:account_id=>2)
     DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1200]
-
+    
     DB[:entries].where(:id=>4).update(:account_id=>nil)
     DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1000]
-
+    
     DB[:entries].filter(:id=>4).delete
     DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1000]
-
+    
     DB[:entries].delete
     DB[:accounts].order(:id).select_map(:balance).must_equal [0, 0]
   end
@@ -747,6 +747,7 @@ describe "PostgreSQL Force Defaults Trigger" do
     DB[:accounts].first.must_equal(:id=>10, :a=>1, :b=>"'\\a", :c=>nil, :d=>14)
   end
 end
+
 
 describe "PostgreSQL JSON Audit Logging" do
   before do

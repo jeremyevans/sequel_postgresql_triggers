@@ -332,6 +332,7 @@ module Sequel
         event_type_column = opts.fetch(:event_type_column, :event_type)
         data_after_column = opts.fetch(:data_after_column, :data_after)
         data_before_column = opts.fetch(:data_before_column, :data_before)
+        attempted_column = opts.fetch(:attempted_column, :attempted)
         boolean_completed_column = opts.fetch(:boolean_completed_column, false)
         uuid_primary_key = opts.fetch(:uuid_primary_key, false)
         run 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp"' if uuid_primary_key
@@ -345,7 +346,7 @@ module Sequel
           Integer opts.fetch(:attempts_column, :attempts), null: false, default: 0
           Time created_column
           Time updated_column
-          Time opts.fetch(:attempted_column, :attempted)
+          Time attempted_column
           if boolean_completed_column
             FalseClass opts.fetch(:completed_column, :completed), null: false, default: false
           else
