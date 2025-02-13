@@ -876,7 +876,7 @@ describe "PostgreSQL Transactional Outbox With UUID Pkey" do
   end
 end if DB.server_version >= 90400
 
-describe "PostgreSQL Transactional Outbox With UUID Pkey" do
+describe "PostgreSQL Transactional Outbox With Boolean :completed field" do
   before do
     DB.extension :pg_json
     DB.create_table(:accounts){integer :id; String :s}
