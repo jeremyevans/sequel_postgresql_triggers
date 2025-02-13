@@ -343,23 +343,26 @@ module Sequel
             primary_key :id
           end
           Integer opts.fetch(:attempts_column, :attempts), null: false, default: 0
-          column  created_column, :timestamptz
-          column  updated_column, :timestamptz
-          column  opts.fetch(:attempted_column, :attempted), :timestamptz
+          Time created_column
+          Time updated_column
+          Time opts.fetch(:attempted_column, :attempted)
           if boolean_completed_column
             FalseClass opts.fetch(:completed_column, :completed), null: false, default: false
           else
-            column     opts.fetch(:completed_column, :completed), :timestamptz
+            Time opts.fetch(:completed_column, :completed)
           end
           String event_type_column, null: false
           String opts.fetch(:last_error_column, :last_error)
-          jsonb  data_before_column
-          jsonb  data_after_column
-          jsonb  opts.fetch(:metadata_column, :metadata)
+          jsonb data_before_column
+          jsonb data_after_column
+          jsonb opts.fetch(:metadata_column, :metadata)
+          index Sequel.asc(created_column)
+          index Sequel.desc(attempted_column)
         end
         pgt_created_at outbox_table, created_column
         pgt_updated_at outbox_table, updated_column
-        create_function(function_name, (<<-SQL), {:language=>:plpgsql, :returns=>:trigger, :replace=>true}.merge(opts[:function_opts]||{}))
+        function_opts = { language: :plpgsql, returns: :trigger, replace: true }.merge(opts.fetch(:function_opts, {}))
+        create_function(function_name, <<-SQL, function_opts)
         BEGIN
           #{pgt_pg_trigger_depth_guard_clause(opts)}
           IF (TG_OP = 'INSERT') THEN
