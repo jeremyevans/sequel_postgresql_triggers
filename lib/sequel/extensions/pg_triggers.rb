@@ -329,10 +329,14 @@ module Sequel
         event_prefix  = opts.fetch(:event_prefix, table)
         created_column = opts.fetch(:created_column, :created)
         updated_column = opts.fetch(:updated_column, :updated)
+        completed_column = opts.fetch(:completed_column, :completed)
+        attempts_column = opts.fetch(:attempts_column, :attempts)
+        attempted_column = opts.fetch(:attempted_column, :attempted)
         event_type_column = opts.fetch(:event_type_column, :event_type)
+        last_error_column = opts.fetch(:last_error_column, :last_error)
         data_after_column = opts.fetch(:data_after_column, :data_after)
         data_before_column = opts.fetch(:data_before_column, :data_before)
-        attempted_column = opts.fetch(:attempted_column, :attempted)
+        metadata_column = opts.fetch(:metadata_column, :metadata)
         boolean_completed_column = opts.fetch(:boolean_completed_column, false)
         uuid_primary_key = opts.fetch(:uuid_primary_key, false)
         run 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp"' if uuid_primary_key
@@ -343,20 +347,20 @@ module Sequel
           else
             primary_key :id
           end
-          Integer opts.fetch(:attempts_column, :attempts), null: false, default: 0
+          Integer attempts_column, null: false, default: 0
           Time created_column
           Time updated_column
           Time attempted_column
           if boolean_completed_column
-            FalseClass opts.fetch(:completed_column, :completed), null: false, default: false
+            FalseClass completed_column, null: false, default: false
           else
-            Time opts.fetch(:completed_column, :completed)
+            Time completed_column
           end
           String event_type_column, null: false
-          String opts.fetch(:last_error_column, :last_error)
+          String last_error_column
           jsonb data_before_column
           jsonb data_after_column
-          jsonb opts.fetch(:metadata_column, :metadata)
+          jsonb metadata_column
           index Sequel.asc(created_column)
           index Sequel.desc(attempted_column)
         end
