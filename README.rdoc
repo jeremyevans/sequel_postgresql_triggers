@@ -284,16 +284,16 @@ Options:
 function_name :: The name of the trigger function
 outbox_table :: The name for the outbox table. Defaults to table_outbox
 event_prefix :: The prefix to use for event_type, defaults to table_ (table_updated, table_created, table_deleted)
-boolean_completed_column :: If this is true, the :completed column will be boolean, otherwise it will be timestamptz
+boolean_completed_column :: If this is true, the :completed column will be boolean, otherwise it will be Time
 uuid_primary_key :: Use a uuid type for the primary key of the outbox table
 uuid_function :: The pl/pgsql function name to use for generating a uuid pkey. defaults to :generate_uuid_v4
 function_opts :: Options to pass to +create_function+ when creating the trigger function.
 Column Name Options: (column type in parenthesis)
-created_column :: defaults to :created (timestamptz)
-updated_column :: defaults to :updated (timestamptz)
+created_column :: defaults to :created (Time)
+updated_column :: defaults to :updated (Time)
 attempts_column :: defaults to :attempts (Integer)
-attempted_column :: defaults to :attempted (timestamptz)
-completed_column :: defaults to :completed (Boolean or timestamptz, depending on :boolean_completed_column)
+attempted_column :: defaults to :attempted (Time)
+completed_column :: defaults to :completed (Boolean or Time, depending on :boolean_completed_column)
 event_type_column :: defaults to :event_type (String)
 last_error_column :: defaults to :last_error (String)
 data_before_column :: defaults to :data_before (jsonb)
