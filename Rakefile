@@ -2,22 +2,27 @@ require "rake"
 require "rake/clean"
 
 CLEAN.include ["*.gem", "rdoc"]
-RDOC_OPTS = ["--quiet", "--line-numbers", "--inline-source", '--title', \
-  'Sequel PostgreSQL Triggers: Database enforced timestamps, immutable columns, and counter/sum caches', '--main', 'README.rdoc']
 
-rdoc_task_class = begin
-  require "rdoc/task"
-  RDOC_OPTS.concat(['-f', 'hanna'])
-  RDoc::Task
-rescue LoadError
-  require "rake/rdoctask"
-  Rake::RDocTask
-end
+desc "Generate rdoc"
+task :rdoc do
+  rdoc_dir = "rdoc"
+  rdoc_opts = ["--line-numbers", "--inline-source", '--title', 'Sequel PostgreSQL Triggers: Database enforced timestamps, immutable columns, and counter/sum caches']
 
-rdoc_task_class.new do |rdoc|
-  rdoc.rdoc_dir = "rdoc"
-  rdoc.options += RDOC_OPTS
-  rdoc.rdoc_files.add %w"README.rdoc MIT-LICENSE lib/sequel_postgresql_triggers.rb lib/sequel/extensions/pg_triggers.rb"
+  begin
+    gem 'hanna'
+    rdoc_opts.concat(['-f', 'hanna'])
+  rescue Gem::LoadError
+  end
+
+  rdoc_opts.concat(['--main', 'README.rdoc', "-o", rdoc_dir] +
+    %w"README.rdoc CHANGELOG MIT-LICENSE" +
+    Dir["lib/**/*.rb"]
+  )
+
+  FileUtils.rm_rf(rdoc_dir)
+
+  require "rdoc"
+  RDoc::RDoc.new.document(rdoc_opts)
 end
 
 test_flags = String.new
