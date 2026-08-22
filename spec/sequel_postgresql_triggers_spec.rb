@@ -1,15 +1,16 @@
 #!/usr/bin/env ruby
 require 'sequel'
 
-if coverage = ENV.delete('COVERAGE')
+if command = ENV.delete('COVERAGE')
   require 'simplecov'
 
   SimpleCov.start do
-    enable_coverage :branch
-    command_name coverage
-    add_filter{|f| f.filename.match(%r{\A#{Regexp.escape(File.expand_path(File.dirname(__FILE__)))}/})}
-    add_group('Missing'){|src| src.covered_percent < 100}
-    add_group('Covered'){|src| src.covered_percent == 100}
+    command_name command
+    coverage :line
+    coverage :branch
+    cover "lib/**/*.rb"
+    group('Missing'){|src| src.covered_percent < 100}
+    merge_timeout 600
   end
 end
 
